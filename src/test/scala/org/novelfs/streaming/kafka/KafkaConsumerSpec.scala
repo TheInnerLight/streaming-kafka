@@ -1,7 +1,5 @@
 package org.novelfs.streaming.kafka
 
-import java.nio.ByteBuffer
-
 import cats.effect._
 import org.scalamock.scalatest.MockFactory
 import org.scalatest.{FreeSpec, Matchers}

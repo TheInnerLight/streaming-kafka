@@ -36,9 +36,8 @@ object KafkaConsumer {
   /**
     * A pipe that accumulates the offset metadata for each topic/partition pair for the supplied input stream of Consumer Records
     */
-  def accumulateOffsetMetadata[F[_], K, V]: Pipe[F, ConsumerRecord[K, V], (ConsumerRecord[K, V], Map[TopicPartition, OffsetMetadata])] = { (s: Stream[F, ConsumerRecord[K, V]]) =>
-    s.zipWithScan(Map.empty[TopicPartition, OffsetMetadata])((map, record) => map + (TopicPartition(record.topic(), record.partition()) -> OffsetMetadata(record.offset())))
-  }
+  def accumulateOffsetMetadata[F[_], K, V]: Pipe[F, ConsumerRecord[K, V], (ConsumerRecord[K, V], Map[TopicPartition, OffsetMetadata])] =
+    _.zipWithScan(Map.empty[TopicPartition, OffsetMetadata])((map, record) => map + (TopicPartition(record.topic(), record.partition()) -> OffsetMetadata(record.offset())))
 
   /**
     * A convenience pipe that accumulates offset metadata based on the supplied commitSettings and commits them to Kafka at some defined frequency
