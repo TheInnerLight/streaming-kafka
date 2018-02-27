@@ -49,5 +49,41 @@ trait DomainArbitraries {
         KafkaRecord[Array[Byte], Array[Byte]](tp, i.toLong, key.toArray, value.toArray) }
     } yield records)
 
+  implicit val kafkaEncryptionSettingsArb: Arbitrary[KafkaEncryptionSettings] =
+    Arbitrary(for {
+      location <- Gen.alphaStr
+      password <- Gen.alphaStr
+    } yield (KafkaEncryptionSettings(location, password)))
+
+  implicit val kafkaAuthenticationSettingsArb: Arbitrary[KafkaAuthenticationSettings] =
+    Arbitrary(for {
+      location <- Gen.alphaStr
+      storePassword <- Gen.alphaStr
+      password <- Gen.alphaStr
+    } yield (KafkaAuthenticationSettings(location, storePassword, password)))
+
+  implicit val kafkaKafkaSecuritySettingsArb: Arbitrary[KafkaSecuritySettings] =
+    Arbitrary(for {
+      x <- Gen.choose(0, 3)
+      securitySettings <- x match {
+      case 0 => Gen.const(KafkaSecuritySettings.NoSecurity)
+      case 1 => kafkaEncryptionSettingsArb.arbitrary.map(KafkaSecuritySettings.EncryptedNotAuthenticated)
+      case 2 => kafkaAuthenticationSettingsArb.arbitrary.map(KafkaSecuritySettings.AuthenticatedNotEncrypted)
+      case 3 => for {
+          encSettings <- kafkaEncryptionSettingsArb.arbitrary
+          authSettings <- kafkaAuthenticationSettingsArb.arbitrary
+        } yield KafkaSecuritySettings.EncryptedAndAuthenticated(encSettings, authSettings)
+      }
+    } yield securitySettings)
+
+  implicit val kafkaConsumerConfigArb: Arbitrary[KafkaConsumerConfig[String, String]] =
+    Arbitrary(for {
+      brokers <- Gen.listOfN(3, Gen.alphaStr)
+      securitySettings <- kafkaKafkaSecuritySettingsArb.arbitrary
+      topics <- Gen.listOfN(3, Gen.alphaStr)
+      clientId <- Gen.alphaStr
+      groupId <- Gen.alphaStr
+    } yield KafkaConsumerConfig[String, String](brokers, securitySettings, topics, clientId, groupId, null, null))
+
 
 }
