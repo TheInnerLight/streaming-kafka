@@ -13,7 +13,8 @@ object KafkaSdkConversions {
     offsetMap.map{case (tp, om) => TopicPartition.toKafkaTopicPartition(tp) -> OffsetMetadata.toKafkaOffsetMetadata(om) }.asJava
 
   def fromKafkaOffsetMap(kafkaOffsetMap : util.Map[common.TopicPartition, OffsetAndMetadata]) : Map[TopicPartition, OffsetMetadata] =
-    kafkaOffsetMap.asScala.map(x => TopicPartition(x._1.topic(), x._1.partition()) -> OffsetMetadata(x._2.offset()))
+    kafkaOffsetMap.asScala
+      .map{case (topicPartition, offsetMetadata) => TopicPartition(topicPartition.topic(), topicPartition.partition()) -> OffsetMetadata(offsetMetadata.offset())}
       .toMap
 
   /**
