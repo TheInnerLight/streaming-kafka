@@ -69,7 +69,7 @@ object KafkaConsumer {
     * An effect that polls kafka (once) with a supplied timeout
     */
   def pollKafka[F[_] : Async, K, V](consumer : ApacheKafkaConsumer[K, V])(pollTimeout : FiniteDuration): F[Vector[KafkaRecord[K, V]]] =
-    Async[F].delay(consumer.poll(pollTimeout.toMillis).asScala.toVector.map(KafkaRecord.fromConsumerRecord))
+    Async[F].delay(consumer.poll(pollTimeout.toMillis).asScala.toVector.map(KafkaSdkConversions.fromConsumerRecord))
 
   /**
     * A pipe that deserialises an array of bytes using supplied key and value deserialisers
