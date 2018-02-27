@@ -1,7 +1,7 @@
 package org.novelfs.streaming.kafka
 
 import org.novelfs.streaming.kafka.ops._
-import org.apache.kafka.clients.consumer.{ConsumerRecord, ConsumerRecords, Consumer => ApacheKafkaConsumer, KafkaConsumer => ConcreteApacheKafkaConsumer}
+import org.apache.kafka.clients.consumer.{Consumer => ApacheKafkaConsumer, KafkaConsumer => ConcreteApacheKafkaConsumer}
 import org.apache.kafka.common.serialization.{ByteArrayDeserializer, Deserializer}
 import fs2._
 import cats.effect._
@@ -36,15 +36,15 @@ object KafkaConsumer {
   /**
     * A pipe that accumulates the offset metadata for each topic/partition pair for the supplied input stream of Consumer Records
     */
-  def accumulateOffsetMetadata[F[_], K, V]: Pipe[F, ConsumerRecord[K, V], (ConsumerRecord[K, V], Map[TopicPartition, OffsetMetadata])] =
-    _.zipWithScan(Map.empty[TopicPartition, OffsetMetadata])((map, record) => map + (TopicPartition(record.topic(), record.partition()) -> OffsetMetadata(record.offset())))
+  def accumulateOffsetMetadata[F[_], K, V]: Pipe[F, KafkaRecord[K, V], (KafkaRecord[K, V], Map[TopicPartition, OffsetMetadata])] =
+    _.zipWithScan(Map.empty[TopicPartition, OffsetMetadata])((map, record) => map + (record.topicPartition -> OffsetMetadata(record.offset)))
 
   /**
     * A convenience pipe that accumulates offset metadata based on the supplied commitSettings and commits them to Kafka at some defined frequency
     */
   def commitOffsets[F[_] : Effect, K, V]
     (consumer : ApacheKafkaConsumer[Array[Byte], Array[Byte]])(autoCommitSettings: KafkaOffsetCommitSettings.AutoCommit)
-    (implicit ex : ExecutionContext): Pipe[F, ConsumerRecord[K,V], ConsumerRecord[K,V]] = (s : Stream[F, ConsumerRecord[K, V]]) =>
+    (implicit ex : ExecutionContext): Pipe[F, KafkaRecord[K,V], KafkaRecord[K,V]] = (s : Stream[F, KafkaRecord[K, V]]) =>
       s.through(accumulateOffsetMetadata)
         .observeAsync(autoCommitSettings.maxAsyncCommits)(s =>
           s.takeElementsEvery(autoCommitSettings.timeBetweenCommits)
@@ -68,25 +68,29 @@ object KafkaConsumer {
   /**
     * An effect that polls kafka (once) with a supplied timeout
     */
-  def pollKafka[F[_] : Async, K, V](consumer : ApacheKafkaConsumer[K, V])(pollTimeout : FiniteDuration): F[ConsumerRecords[K, V]] =
-    Async[F].delay(consumer.poll(pollTimeout.toMillis))
+  def pollKafka[F[_] : Async, K, V](consumer : ApacheKafkaConsumer[K, V])(pollTimeout : FiniteDuration): F[Vector[KafkaRecord[K, V]]] =
+    Async[F].delay(consumer.poll(pollTimeout.toMillis).asScala.toVector.map(KafkaRecord.fromConsumerRecord))
 
   /**
     * A pipe that deserialises an array of bytes using supplied key and value deserialisers
     */
-  def deserializer[F[_] : Async, K, V](keyDeserializer: Deserializer[K], valueDeserializer : Deserializer[V]) : Pipe[F, ConsumerRecord[Array[Byte], Array[Byte]], (K, V)] =
+  def deserializer[F[_] : Async, K, V](keyDeserializer: Deserializer[K], valueDeserializer : Deserializer[V]) : Pipe[F, KafkaRecord[Array[Byte], Array[Byte]], KafkaRecord[K, V]] =
     _.evalMap(record =>
-      Async[F].delay((keyDeserializer.deserialize(record.topic(), record.key()), valueDeserializer.deserialize(record.topic(), record.value())))
+      Async[F].delay {
+        val key = keyDeserializer.deserialize(record.topicPartition.topic, record.key)
+        val value = valueDeserializer.deserialize(record.topicPartition.topic, record.value)
+        record.copy(key = key, value = value)
+      }
     )
 
   /**
     * Creates a streaming subscription using the supplied kafka configuration
     */
-  def apply[F[_] : Effect, K, V](config : KafkaConsumerConfig[K, V])(implicit ex : ExecutionContext): Stream[F, (K, V)] =
+  def apply[F[_] : Effect, K, V](config : KafkaConsumerConfig[K, V])(implicit ex : ExecutionContext): Stream[F, KafkaRecord[K, V]] =
     Stream.bracket(subscribeToConsumer(config))(consumer =>
       for {
         records <- Stream.repeatEval(pollKafka(consumer)(config.pollTimeout))
-        process <- Stream.emits(records.asScala.toVector)
+        process <- Stream.emits(records)
           .covary[F]
           .through(config.commitOffsetSettings match {
             case autoCommitSettings : KafkaOffsetCommitSettings.AutoCommit => commitOffsets(consumer)(autoCommitSettings)
