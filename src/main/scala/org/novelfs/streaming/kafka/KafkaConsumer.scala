@@ -49,7 +49,7 @@ object KafkaConsumer {
         .observeAsync(autoCommitSettings.maxAsyncCommits)(s =>
           s.takeElementsEvery(autoCommitSettings.timeBetweenCommits)
             .evalMap{case (_, offsetMap) => commitOffsetMap(consumer)(offsetMap)})
-        .map(_._1)
+        .map{case (r,_) => r}
 
 
   /**

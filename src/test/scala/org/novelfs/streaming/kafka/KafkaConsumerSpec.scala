@@ -43,7 +43,7 @@ class KafkaConsumerSpec extends FlatSpec with Matchers with MockFactory with Gen
     forAll { consumerRecords: List[KafkaRecord[String, String]] =>
       val finalMap = Stream.emits(consumerRecords)
           .through(KafkaConsumer.accumulateOffsetMetadata)
-          .map(_._2)
+          .map{case (_, offsets) => offsets}
           .toVector
           .last
 

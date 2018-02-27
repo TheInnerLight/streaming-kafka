@@ -9,8 +9,8 @@ package object ops {
   implicit class ExtraStreamOps[F[_], O](s : Stream[F, O]) {
     def takeElementsEvery(d : FiniteDuration) =
       s.tail.zip(Stream.every(d))
-        .filterWithPrevious((t1, t2) => t1._2 != t2._2)
-        .map(_._1)
+        .filterWithPrevious{case ((_,t1), (_, t2)) => t1 != t2}
+        .map{case (x,_) => x}
 
 
     def suppressErrorWith(f : PartialFunction[Throwable, F[Unit]]): Stream[F, O] =
@@ -19,6 +19,4 @@ package object ops {
         case None => Stream.raiseError(t)
       })
   }
-
-
 }
