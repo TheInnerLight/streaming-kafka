@@ -77,11 +77,15 @@ scalacOptions in (Compile, console) --= Seq("-Ywarn-unused:imports", "-Xfatal-wa
 
 releaseVersionBump := sbtrelease.Version.Bump.Bugfix
 
-credentials += Credentials("Sonatype Nexus Repository Manager", "oss.sonatype.org", sys.env.get("SONATYPE_USERNAME"), sys.env.get("SONATYPE_PASSWORD"))
+credentials ++= (for {
+  username <- sys.env.get("SONATYPE_USERNAME")
+  password <- sys.env.get("SONATYPE_PASSWORD")
+} yield Credentials("Sonatype Nexus Repository Manager", "oss.sonatype.org", username, password)).toSeq
+
 pomIncludeRepository := { _ => false }
 publishMavenStyle := true
 
-licenses := Seq("Apache 2.0" -> url("https://opensource.org/licenses/Apache-2.0"))
+licenses := Seq("Apache-2.0" -> url("https://opensource.org/licenses/Apache-2.0"))
 
 homepage := Some(url("https://github.com/TheInnerLight/streaming-kafka"))
 
