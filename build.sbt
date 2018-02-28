@@ -1,3 +1,5 @@
+import ReleaseTransformations._
+
 name := "streaming-kafka"
 
 version := "0.1"
@@ -74,3 +76,50 @@ scalacOptions ++= Seq(
 scalacOptions in (Compile, console) --= Seq("-Ywarn-unused:imports", "-Xfatal-warnings")
 
 releaseVersionBump := sbtrelease.Version.Bump.Bugfix
+
+credentials += Credentials("Sonatype Nexus Repository Manager", "oss.sonatype.org", sys.env.get("SONATYPE_USERNAME"), sys.env.get("SONATYPE_PASSWORD"))
+pomIncludeRepository := { _ => false }
+publishMavenStyle := true
+
+licenses := Seq("Apache 2.0" -> url("https://opensource.org/licenses/Apache-2.0"))
+
+homepage := Some(url("https://github.com/TheInnerLight/streaming-kafka"))
+
+scmInfo := Some(
+  ScmInfo(
+    url("https://github.com/TheInnerLight/streaming-kafka"),
+    "scm:git@github.com:TheInnerLight/streaming-kafka.git"
+  )
+)
+
+developers := List(
+  Developer(
+    id    = "TheInnerLight",
+    name  = "Phil Curzon",
+    email = "phil@novelfs.org",
+    url   = url("https://github.com/TheInnerLight")
+  )
+)
+
+publishTo := {
+  val nexus = "https://oss.sonatype.org/"
+  if (isSnapshot.value)
+    Some("snapshots" at nexus + "content/repositories/snapshots")
+  else
+    Some("releases"  at nexus + "service/local/staging/deploy/maven2")
+}
+
+releaseProcess := Seq[ReleaseStep](
+  checkSnapshotDependencies,
+  inquireVersions,
+  runClean,
+  runTest,
+  setReleaseVersion,
+  commitReleaseVersion,
+  tagRelease,
+  releaseStepCommand("publishSigned"),
+  setNextVersion,
+  commitNextVersion,
+  releaseStepCommand("sonatypeReleaseAll"),
+  pushChanges
+)
