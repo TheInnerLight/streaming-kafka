@@ -2,6 +2,9 @@
 *.class
 *.log
 
+# local files
+local.*
+
 # sbt specific
 .cache
 .history
