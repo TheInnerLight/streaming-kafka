@@ -72,3 +72,5 @@ scalacOptions ++= Seq(
 )
 
 scalacOptions in (Compile, console) --= Seq("-Ywarn-unused:imports", "-Xfatal-warnings")
+
+releaseVersionBump := sbtrelease.Version.Bump.Bugfix
