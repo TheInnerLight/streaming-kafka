@@ -1,10 +1,8 @@
 import ReleaseTransformations._
 
 name := "streaming-kafka"
-
-version := "0.1"
-
 scalaVersion := "2.12.4"
+organization := "org.novelfs"
 
 val catsEffectVersion = "0.7"
 val kafkaSerializationV = "0.3.2"
@@ -95,6 +93,10 @@ scmInfo := Some(
     "scm:git@github.com:TheInnerLight/streaming-kafka.git"
   )
 )
+
+useGpg := false
+pgpSecretRing := file("local.secring.gpg")
+pgpPublicRing := file("local.pubring.gpg")
 
 developers := List(
   Developer(
