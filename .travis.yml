@@ -24,4 +24,5 @@ before_install:
 script:
 - sbt ++$TRAVIS_SCALA_VERSION test
 after_success:
-- $TRAVIS_BRANCH == "master" && git checkout master && sbt release
+- git checkout $TRAVIS_BRANCH
+- '[[ $TRAVIS_BRANCH == "master" ]] && { sbt release; };'
