@@ -4,7 +4,7 @@ name := "streaming-kafka"
 scalaVersion := "2.12.4"
 organization := "org.novelfs"
 
-val catsEffectVersion = "0.7"
+val catsEffectVersion = "0.8"
 val kafkaSerializationV = "0.3.2"
 val scalatestVersion = "3.0.4"
 val typesafeConfigVersion = "1.3.1"
