@@ -97,6 +97,7 @@ scmInfo := Some(
 useGpg := false
 pgpSecretRing := file("local.secring.gpg")
 pgpPublicRing := file("local.pubring.gpg")
+pgpPassphrase := sys.env.get("PGP_PASS").map(_.toArray)
 
 developers := List(
   Developer(
