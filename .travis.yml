@@ -26,4 +26,5 @@ script:
 - sbt ++$TRAVIS_SCALA_VERSION test
 after_success:
 - git checkout $TRAVIS_BRANCH
-- test $TRAVIS_BRANCH = "master" && test $TRAVIS_PULL_REQUEST = "false" && sbt ++$TRAVIS_SCALA_VERSION 'release with-defaults skip-tests'
+- test $TRAVIS_BRANCH = "master" && test $TRAVIS_PULL_REQUEST = "false" && sbt ++$TRAVIS_SCALA_VERSION
+  'release with-defaults skip-tests'
