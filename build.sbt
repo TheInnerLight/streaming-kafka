@@ -117,6 +117,7 @@ publishTo := {
 }
 
 releaseCrossBuild := true
+crossScalaVersions := Seq("2.11.12", "2.12.4")
 
 releaseProcess := Seq[ReleaseStep](
   checkSnapshotDependencies,
