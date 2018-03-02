@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.FiniteDuration
 import scala.collection.JavaConverters._
+import KafkaSdkConversions._
 
 object KafkaConsumer {
 
@@ -23,7 +24,7 @@ object KafkaConsumer {
     */
   def commitOffsetMap[F[_] : Effect, K, V](consumer : ApacheKafkaConsumer[K, V])(offsetMap : Map[TopicPartition, OffsetMetadata]): F[Unit] =
     Async[F].async { (cb: Either[Throwable, Unit] => Unit) =>
-      consumer.commitAsync(KafkaSdkConversions.toKafkaOffsetMap(offsetMap), (_: java.util.Map[_, _], exception: Exception) => Option(exception) match {
+      consumer.commitAsync(offsetMap.toKafkaSdk, (_: java.util.Map[_, _], exception: Exception) => Option(exception) match {
         case None =>
           log.debug(s"Offset committed: $offsetMap")
           cb(Right(()))
@@ -69,7 +70,7 @@ object KafkaConsumer {
     * An effect that polls kafka (once) with a supplied timeout
     */
   def pollKafka[F[_] : Async, K, V](consumer : ApacheKafkaConsumer[K, V])(pollTimeout : FiniteDuration): F[Vector[KafkaRecord[K, V]]] =
-    Async[F].delay(consumer.poll(pollTimeout.toMillis).asScala.toVector.map(KafkaSdkConversions.fromConsumerRecord))
+    Async[F].delay(consumer.poll(pollTimeout.toMillis).fromKafkaSdk)
 
   /**
     * A pipe that deserialises an array of bytes using supplied key and value deserialisers
@@ -82,6 +83,9 @@ object KafkaConsumer {
         record.copy(key = key, value = value)
       }
     )
+
+  def topicPartitionAssignments[F[_] : Async, K, V](consumer : ApacheKafkaConsumer[K, V]): F[Set[TopicPartition]] =
+    Async[F].delay { consumer.assignment().fromKafkaSdk }
 
   /**
     * Creates a streaming subscription using the supplied kafka configuration
