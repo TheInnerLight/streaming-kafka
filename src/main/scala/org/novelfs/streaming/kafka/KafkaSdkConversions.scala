@@ -93,6 +93,4 @@ trait ToSdkConversions {
   }
 }
 
-object KafkaSdkConversions extends FromSdkConversions with ToSdkConversions {
-
-}
+object KafkaSdkConversions extends FromSdkConversions with ToSdkConversions
