@@ -10,6 +10,7 @@ import scala.concurrent.duration._
 import collection.JavaConverters._
 import fs2._
 import org.apache.kafka.common.serialization.Deserializer
+import KafkaSdkConversions._
 
 class KafkaConsumerSpec extends FlatSpec with Matchers with MockFactory with GeneratorDrivenPropertyChecks with DomainArbitraries {
 
@@ -30,7 +31,7 @@ class KafkaConsumerSpec extends FlatSpec with Matchers with MockFactory with Gen
 
   "commit offset map" should "call consumer.commitAsync with the supplied OffsetMap" in {
     forAll { (offsetMap : Map[TopicPartition, OffsetMetadata]) =>
-      val javaMap = offsetMap.map{case (tp, om) => TopicPartition.toKafkaTopicPartition(tp) -> OffsetMetadata.toKafkaOffsetMetadata(om) }.asJava
+      val javaMap = offsetMap.toKafkaSdk
 
       (rawKafkaConsumer.commitAsync(_ : java.util.Map[org.apache.kafka.common.TopicPartition,  org.apache.kafka.clients.consumer.OffsetAndMetadata], _ : OffsetCommitCallback))
           .expects (javaMap, *) onCall { (_, callback) => callback.onComplete(javaMap, null) } once()
