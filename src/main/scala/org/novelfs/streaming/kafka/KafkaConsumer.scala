@@ -49,7 +49,7 @@ object KafkaConsumer {
     _.noneTerminate
       .zipWithPrevious
       .observe1 {
-        case (Some(Some(valueAndOffsetMap)), None) => commitOffsetMap(consumer)(valueAndOffsetMap._2)
+        case (Some(Some((_, offsetMap))), None) => commitOffsetMap(consumer)(offsetMap)
         case _ => Effect[F].unit
       }
       .map {case (_, valueAndOffsetMap) => valueAndOffsetMap}
