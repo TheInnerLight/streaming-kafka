@@ -15,17 +15,18 @@ import KafkaSdkConversions._
 class KafkaConsumerSpec extends FlatSpec with Matchers with MockFactory with GeneratorDrivenPropertyChecks with DomainArbitraries {
 
   val rawKafkaConsumer = mock[ApacheKafkaConsumer[String, String]]
+  val kafkaConsumer = KafkaConsumer(rawKafkaConsumer)
 
   "cleanupConsumer" should "call consumer.close()" in {
     (rawKafkaConsumer.close _ : () => Unit) expects() once()
-    KafkaConsumer.cleanupConsumer[IO, String, String](rawKafkaConsumer).unsafeRunSync()
+    KafkaConsumer.cleanupConsumer[IO, String, String](kafkaConsumer).unsafeRunSync()
   }
 
   "poll" should "call consumer.poll with supplied duration" in {
     forAll { (d: FiniteDuration) =>
       (rawKafkaConsumer.poll _) expects(d.toMillis) returns
         (new ConsumerRecords[String,String](Map.empty[org.apache.kafka.common.TopicPartition, java.util.List[ConsumerRecord[String, String]]].asJava)) once()
-      KafkaConsumer.pollKafka[IO, String, String](rawKafkaConsumer)(d).unsafeRunSync()
+      KafkaConsumer.pollKafka[IO, String, String](kafkaConsumer)(d).unsafeRunSync()
     }
   }
 
@@ -36,7 +37,7 @@ class KafkaConsumerSpec extends FlatSpec with Matchers with MockFactory with Gen
       (rawKafkaConsumer.commitAsync(_ : java.util.Map[org.apache.kafka.common.TopicPartition,  org.apache.kafka.clients.consumer.OffsetAndMetadata], _ : OffsetCommitCallback))
           .expects (javaMap, *) onCall { (_, callback) => callback.onComplete(javaMap, null) } once()
 
-      KafkaConsumer.commitOffsetMap[IO, String, String](rawKafkaConsumer)(offsetMap).unsafeRunSync()
+      KafkaConsumer.commitOffsetMap[IO, String, String](kafkaConsumer)(offsetMap).unsafeRunSync()
     }
   }
 
@@ -66,6 +67,7 @@ class KafkaConsumerSpec extends FlatSpec with Matchers with MockFactory with Gen
         Stream.emits(consumerRecords)
           .covary[IO]
           .through(KafkaConsumer.deserializer[IO, Array[Int], Array[Int]](intDeserializer, intDeserializer))
+          .collect { case Right(r) => r }
           .compile
           .toList
           .unsafeRunSync()
