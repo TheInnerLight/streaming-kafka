@@ -5,6 +5,7 @@ jdk:
 - oraclejdk8
 ignore:
 - version.sbt
+- README.md
 sudo: false
 cache:
   directories:
