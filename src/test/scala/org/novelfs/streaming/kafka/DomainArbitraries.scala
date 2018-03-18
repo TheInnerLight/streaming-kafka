@@ -1,5 +1,6 @@
 package org.novelfs.streaming.kafka
 
+import org.novelfs.streaming.kafka.consumer.{ConsumerRecord, KafkaConsumerConfig, OffsetMetadata}
 import org.scalacheck.{Arbitrary, Gen}
 
 import scala.concurrent.duration._
@@ -25,7 +26,7 @@ trait DomainArbitraries {
   implicit val topicPartitionListArb: Arbitrary[List[TopicPartition]] =
     Arbitrary(Gen.listOfN(5, topicPartitionArb.arbitrary))
 
-  implicit val stringConsumerRecordsArb: Arbitrary[List[KafkaRecord[String, String]]] =
+  implicit val stringConsumerRecordsArb: Arbitrary[List[ConsumerRecord[String, String]]] =
     Arbitrary(for{
       topicPartitionList <- topicPartitionListArb.arbitrary
       tempRecords <- Gen.listOfN(1000, for {
@@ -34,10 +35,10 @@ trait DomainArbitraries {
         value <- Gen.alphaStr
       } yield (tp, key, value))
       records <- tempRecords.zipWithIndex.map { case ((tp, key, value), i) =>
-        KafkaRecord[String, String](tp, i.toLong, key, value) }
+        ConsumerRecord[String, String](tp, i.toLong, key, value) }
     } yield records)
 
-  implicit val byteArrayConsumerRecordsArb: Arbitrary[List[KafkaRecord[Array[Byte], Array[Byte]]]] =
+  implicit val byteArrayConsumerRecordsArb: Arbitrary[List[ConsumerRecord[Array[Byte], Array[Byte]]]] =
     Arbitrary(for{
       topicPartitionList <- topicPartitionListArb.arbitrary
       tempRecords <- Gen.listOfN(1000, for {
@@ -46,7 +47,7 @@ trait DomainArbitraries {
         value <- Gen.listOfN(256, Arbitrary.arbByte.arbitrary)
       } yield (tp, key, value))
       records <- tempRecords.zipWithIndex.map { case ((tp, key, value), i) =>
-        KafkaRecord[Array[Byte], Array[Byte]](tp, i.toLong, key.toArray, value.toArray) }
+        ConsumerRecord[Array[Byte], Array[Byte]](tp, i.toLong, key.toArray, value.toArray) }
     } yield records)
 
   implicit val kafkaEncryptionSettingsArb: Arbitrary[KafkaEncryptionSettings] =

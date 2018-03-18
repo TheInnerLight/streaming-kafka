@@ -1,4 +1,4 @@
-package org.novelfs.streaming.kafka
+package org.novelfs.streaming.kafka.consumer
 
 import scala.concurrent.duration.FiniteDuration
 

@@ -3,7 +3,7 @@ package org.novelfs.streaming.kafka
 import cats.effect._
 import org.scalamock.scalatest.MockFactory
 import org.scalatest.{FlatSpec, Matchers}
-import org.apache.kafka.clients.consumer.{ConsumerRecord, ConsumerRecords, OffsetCommitCallback, Consumer => ApacheKafkaConsumer}
+import org.apache.kafka.clients.consumer.{ConsumerRecord => ApacheConsumerRecord, ConsumerRecords => ApacheConsumerRecords, OffsetCommitCallback, Consumer => ApacheKafkaConsumer}
 import org.scalatest.prop.GeneratorDrivenPropertyChecks
 
 import scala.concurrent.duration._
@@ -11,6 +11,7 @@ import collection.JavaConverters._
 import fs2._
 import org.apache.kafka.common.serialization.Deserializer
 import KafkaSdkConversions._
+import org.novelfs.streaming.kafka.consumer.{KafkaConsumer, OffsetMetadata}
 
 class KafkaConsumerSpec extends FlatSpec with Matchers with MockFactory with GeneratorDrivenPropertyChecks with DomainArbitraries {
 
@@ -25,7 +26,7 @@ class KafkaConsumerSpec extends FlatSpec with Matchers with MockFactory with Gen
   "poll" should "call consumer.poll with supplied duration" in {
     forAll { (d: FiniteDuration) =>
       (rawKafkaConsumer.poll _) expects(d.toMillis) returns
-        (new ConsumerRecords[String,String](Map.empty[org.apache.kafka.common.TopicPartition, java.util.List[ConsumerRecord[String, String]]].asJava)) once()
+        (new ApacheConsumerRecords[String,String](Map.empty[org.apache.kafka.common.TopicPartition, java.util.List[ApacheConsumerRecord[String, String]]].asJava)) once()
       KafkaConsumer.pollKafka[IO, String, String](kafkaConsumer)(d).unsafeRunSync()
     }
   }
@@ -42,7 +43,7 @@ class KafkaConsumerSpec extends FlatSpec with Matchers with MockFactory with Gen
   }
 
   "accumulate offset metadata" should "return the largest offsets for each topic/partition" in {
-    forAll { consumerRecords: List[KafkaRecord[String, String]] =>
+    forAll { consumerRecords: List[consumer.ConsumerRecord[String, String]] =>
       val finalMap = Stream.emits(consumerRecords)
           .through(KafkaConsumer.accumulateOffsetMetadata)
           .map{case (_, offsets) => offsets}
@@ -58,7 +59,7 @@ class KafkaConsumerSpec extends FlatSpec with Matchers with MockFactory with Gen
   }
 
   "deserializer" should "call deserialize on the key and value deserializers with the supplied stream values" in {
-    forAll { consumerRecords: List[KafkaRecord[Array[Byte], Array[Byte]]] =>
+    forAll { consumerRecords: List[consumer.ConsumerRecord[Array[Byte], Array[Byte]]] =>
       val intDeserializer = mock[Deserializer[Array[Int]]]
 
       (intDeserializer.deserialize (_ : String, _ : Array[Byte])) expects(*, *) onCall((_, arr) => TestHelpers.byteArrayToIntArray(arr)) atLeastOnce()

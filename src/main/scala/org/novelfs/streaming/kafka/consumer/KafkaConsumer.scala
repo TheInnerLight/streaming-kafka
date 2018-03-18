@@ -1,19 +1,20 @@
-package org.novelfs.streaming.kafka
+package org.novelfs.streaming.kafka.consumer
 
-import org.novelfs.streaming.kafka.ops._
-import org.apache.kafka.clients.consumer.{Consumer => ApacheKafkaConsumer, KafkaConsumer => ConcreteApacheKafkaConsumer}
-import org.apache.kafka.common.serialization.{ByteArrayDeserializer, Deserializer}
-import fs2._
 import cats.effect._
 import cats.implicits._
+import fs2._
+import org.apache.kafka.clients.consumer.{Consumer => ApacheKafkaConsumer, KafkaConsumer => ConcreteApacheKafkaConsumer}
+import org.apache.kafka.common.serialization.{ByteArrayDeserializer, Deserializer}
+import org.novelfs.streaming.kafka._
+import org.novelfs.streaming.kafka.ops._
 import org.slf4j.LoggerFactory
 
+import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.FiniteDuration
-import scala.collection.JavaConverters._
 import KafkaSdkConversions._
 
-final case class KafkaConsumer[K, V](kafkaConsumer : ApacheKafkaConsumer[K, V])
+final case class KafkaConsumer[K, V] private (kafkaConsumer : ApacheKafkaConsumer[K, V])
 
 object KafkaConsumer {
 
@@ -39,13 +40,13 @@ object KafkaConsumer {
   /**
     * A pipe that accumulates the offset metadata for each topic/partition pair for the supplied input stream of Consumer Records
     */
-  def accumulateOffsetMetadata[F[_], K, V]: Pipe[F, KafkaRecord[K, V], (KafkaRecord[K, V], Map[TopicPartition, OffsetMetadata])] =
+  def accumulateOffsetMetadata[F[_], K, V]: Pipe[F, ConsumerRecord[K, V], (ConsumerRecord[K, V], Map[TopicPartition, OffsetMetadata])] =
     _.zipWithScan(Map.empty[TopicPartition, OffsetMetadata])((map, record) => map + (record.topicPartition -> OffsetMetadata(record.offset)))
 
   /**
     * A pipe that commits the final available offset data for each topic/partition pair for the supplied input stream of Consumer Records
     */
-  def commitFinalOffsets[F[_] : Effect, K, V](consumer : KafkaConsumer[K, V]) : Pipe[F, (KafkaRecord[K, V], Map[TopicPartition, OffsetMetadata]), (KafkaRecord[K, V], Map[TopicPartition, OffsetMetadata])] =
+  def commitFinalOffsets[F[_] : Effect, K, V](consumer : KafkaConsumer[K, V]) : Pipe[F, (ConsumerRecord[K, V], Map[TopicPartition, OffsetMetadata]), (ConsumerRecord[K, V], Map[TopicPartition, OffsetMetadata])] =
     _.noneTerminate
       .zipWithPrevious
       .observe1 {
@@ -58,7 +59,7 @@ object KafkaConsumer {
   /**
     * A convenience pipe that accumulates offset metadata based on the supplied commitSettings and commits them to Kafka at some defined frequency
     */
-  def commitOffsets[F[_] : Effect, K, V](consumer : KafkaConsumer[K, V])(autoCommitSettings: KafkaOffsetCommitSettings.AutoCommit)(implicit ex : ExecutionContext): Pipe[F, KafkaRecord[K,V], KafkaRecord[K,V]] =
+  def commitOffsets[F[_] : Effect, K, V](consumer : KafkaConsumer[K, V])(autoCommitSettings: KafkaOffsetCommitSettings.AutoCommit)(implicit ex : ExecutionContext): Pipe[F, ConsumerRecord[K,V], ConsumerRecord[K,V]] =
       _.through(accumulateOffsetMetadata)
         .observeAsync(autoCommitSettings.maxAsyncCommits)(s =>
             s.through(commitFinalOffsets(consumer))
@@ -77,18 +78,19 @@ object KafkaConsumer {
   /**
     * An effect that disposes of some supplied kafka consumer
     */
-  def cleanupConsumer[F[_] : Async, K, V](consumer : KafkaConsumer[K, V]): F[Unit] = Async[F].delay(consumer.kafkaConsumer.close())
+  def cleanupConsumer[F[_] : Async, K, V](consumer : KafkaConsumer[K, V]): F[Unit] =
+    Async[F].delay(consumer.kafkaConsumer.close())
 
   /**
     * An effect that polls kafka (once) with a supplied timeout
     */
-  def pollKafka[F[_] : Async, K, V](consumer : KafkaConsumer[K, V])(pollTimeout : FiniteDuration): F[Vector[KafkaRecord[K, V]]] =
+  def pollKafka[F[_] : Async, K, V](consumer : KafkaConsumer[K, V])(pollTimeout : FiniteDuration): F[Vector[ConsumerRecord[K, V]]] =
     Async[F].delay(consumer.kafkaConsumer.poll(pollTimeout.toMillis).fromKafkaSdk)
 
   /**
     * A pipe that deserialises an array of bytes using supplied key and value deserialisers
     */
-  def deserializer[F[_] : Async, K, V](keyDeserializer: Deserializer[K], valueDeserializer : Deserializer[V]) : Pipe[F, KafkaRecord[Array[Byte], Array[Byte]], Either[Throwable, KafkaRecord[K, V]]] =
+  def deserializer[F[_] : Async, K, V](keyDeserializer: Deserializer[K], valueDeserializer : Deserializer[V]) : Pipe[F, ConsumerRecord[Array[Byte], Array[Byte]], Either[Throwable, ConsumerRecord[K, V]]] =
     _.evalMap(record =>
       Async[F].delay {
         val key = keyDeserializer.deserialize(record.topicPartition.topic, record.key)
@@ -103,7 +105,7 @@ object KafkaConsumer {
   /**
     * Creates a streaming subscription using the supplied kafka configuration
     */
-  def apply[F[_] : Effect, K, V](config : KafkaConsumerConfig[K, V])(implicit ex : ExecutionContext): Stream[F, Either[Throwable, KafkaRecord[K, V]]] =
+  def apply[F[_] : Effect, K, V](config : KafkaConsumerConfig[K, V])(implicit ex : ExecutionContext): Stream[F, Either[Throwable, ConsumerRecord[K, V]]] =
     Stream.bracket(subscribeToConsumer(config))(consumer =>
       for {
         records <- Stream.repeatEval(pollKafka(consumer)(config.pollTimeout))
