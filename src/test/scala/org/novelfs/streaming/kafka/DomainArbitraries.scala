@@ -1,6 +1,7 @@
 package org.novelfs.streaming.kafka
 
 import org.novelfs.streaming.kafka.consumer.{ConsumerRecord, KafkaConsumerConfig, OffsetMetadata}
+import org.novelfs.streaming.kafka.producer.ProducerRecord
 import org.scalacheck.{Arbitrary, Gen}
 
 import scala.concurrent.duration._
@@ -49,6 +50,13 @@ trait DomainArbitraries {
       records <- tempRecords.zipWithIndex.map { case ((tp, key, value), i) =>
         ConsumerRecord[Array[Byte], Array[Byte]](tp, i.toLong, key.toArray, value.toArray) }
     } yield records)
+
+  implicit val stringProducerRecord : Arbitrary[ProducerRecord[String, String]] =
+    Arbitrary(for {
+      topic <- Gen.alphaStr
+      key <- Gen.alphaStr
+      value <- Gen.alphaStr
+    } yield ProducerRecord(topic, None, key, value))
 
   implicit val kafkaEncryptionSettingsArb: Arbitrary[KafkaEncryptionSettings] =
     Arbitrary(for {
