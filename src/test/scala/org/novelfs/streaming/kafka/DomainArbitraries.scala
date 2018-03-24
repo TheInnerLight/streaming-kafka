@@ -42,7 +42,7 @@ trait DomainArbitraries {
   implicit val byteArrayConsumerRecordsArb: Arbitrary[List[ConsumerRecord[Array[Byte], Array[Byte]]]] =
     Arbitrary(for{
       topicPartitionList <- topicPartitionListArb.arbitrary
-      tempRecords <- Gen.listOfN(1000, for {
+      tempRecords <- Gen.listOfN(100, for {
         tp <- Gen.oneOf(topicPartitionList)
         key <- Gen.listOfN(128, Arbitrary.arbByte.arbitrary)
         value <- Gen.listOfN(256, Arbitrary.arbByte.arbitrary)
@@ -51,12 +51,15 @@ trait DomainArbitraries {
         ConsumerRecord[Array[Byte], Array[Byte]](tp, i.toLong, key.toArray, value.toArray) }
     } yield records)
 
-  implicit val stringProducerRecord : Arbitrary[ProducerRecord[String, String]] =
+  implicit val stringProducerRecordArb : Arbitrary[ProducerRecord[String, String]] =
     Arbitrary(for {
       topic <- Gen.alphaStr
       key <- Gen.alphaStr
       value <- Gen.alphaStr
     } yield ProducerRecord(topic, None, key, value))
+
+  implicit val stringProducerRecordsArb : Arbitrary[List[ProducerRecord[String, String]]] =
+    Arbitrary(Gen.listOfN(100, stringProducerRecordArb.arbitrary))
 
   implicit val kafkaEncryptionSettingsArb: Arbitrary[KafkaEncryptionSettings] =
     Arbitrary(for {

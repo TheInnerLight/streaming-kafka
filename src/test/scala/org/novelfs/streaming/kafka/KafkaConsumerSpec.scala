@@ -75,11 +75,11 @@ class KafkaConsumerSpec extends FlatSpec with Matchers with MockFactory with Gen
           .map(r => (r.key, r.value))
           .unzip
 
-      val expectedKeys: List[Array[Int]] = consumerRecords.map(c => TestHelpers.byteArrayToIntArray(c.key)).toList
-      val expectedVals: List[Array[Int]] = consumerRecords.map(c => TestHelpers.byteArrayToIntArray(c.value)).toList
+      val expectedKeys: List[Array[Int]] = consumerRecords.map(c => TestHelpers.byteArrayToIntArray(c.key))
+      val expectedVals: List[Array[Int]] = consumerRecords.map(c => TestHelpers.byteArrayToIntArray(c.value))
 
-      ks === expectedKeys
-      vs === expectedVals
+      ks should contain theSameElementsAs expectedKeys
+      vs should contain theSameElementsAs expectedVals
     }
   }
 
