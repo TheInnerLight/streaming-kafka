@@ -99,6 +99,9 @@ object KafkaConsumer {
       }.attempt
     )
 
+  /**
+    * An effect to return the set of topic and partition assignments attached to the supplied consumer
+    */
   def topicPartitionAssignments[F[_] : Async, K, V](consumer : KafkaConsumer[K, V]): F[Set[TopicPartition]] =
     Async[F].delay { consumer.kafkaConsumer.assignment().fromKafkaSdk }
 

@@ -26,12 +26,18 @@ object KafkaProducer {
       }.attempt
     )
 
+  /**
+    * An effect that sends a supplied producer record to the supplier kafka producer
+    */
   def sendRecord[F[_] : Async, K, V](record: ProducerRecord[K, V])(producer: KafkaProducer[K, V]): F[Unit] =
     Async[F].delay {
       producer.kafkaProducer.send(record.toKafkaSdk)
       ()
     }
 
+  /**
+    * An effect to create a kafka producer using the supplied producer config
+    */
   def createProducer[F[_] : Async, K, V](producerConfig : KafkaProducerConfig[K, V]): F[KafkaProducer[Array[Byte], Array[Byte]]] =
     Async[F].delay {
       val props = KafkaProducerConfig.generateProperties(producerConfig)
@@ -39,9 +45,15 @@ object KafkaProducer {
       KafkaProducer(producer)
     }
 
+  /**
+    * An effect to cleanup a supplied kafka producer
+    */
   def cleanupProducer[F[_] : Async, K, V](producer : KafkaProducer[K, V]): F[Unit] =
     Async[F].delay(producer.kafkaProducer.close())
 
+  /**
+    * Creates a Pipe that can be used to submit a stream of producer records to Kafka
+    */
   def apply[F[_] : Async, K, V](producerConfig : KafkaProducerConfig[K, V]) : Pipe[F, ProducerRecord[K, V], Either[Throwable, Unit]] = s =>
     Stream.bracket(createProducer(producerConfig))(producer => {
       s.through(serializer(producerConfig.keySerializer, producerConfig.valueSerializer))
