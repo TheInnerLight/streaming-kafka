@@ -19,7 +19,7 @@ object KafkaProducerConfig {
                security             : KafkaSecuritySettings,
                keySerializer        : Serializer[K],
                valueSerializer      : Serializer[V]) : KafkaProducerConfig[K, V] =
-    KafkaProducerConfig(
+    new KafkaProducerConfig(
       brokers = brokers,
       security = security,
       keySerializer = keySerializer,

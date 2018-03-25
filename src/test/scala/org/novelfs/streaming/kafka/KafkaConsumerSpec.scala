@@ -44,17 +44,17 @@ class KafkaConsumerSpec extends FlatSpec with Matchers with MockFactory with Gen
 
   "accumulate offset metadata" should "return the largest offsets for each topic/partition" in {
     forAll { consumerRecords: List[consumer.ConsumerRecord[String, String]] =>
-      val finalMap = Stream.emits(consumerRecords)
+      val finalMap: Map[TopicPartition, OffsetMetadata] = Stream.emits(consumerRecords)
           .through(KafkaConsumer.accumulateOffsetMetadata)
           .map{case (_, offsets) => offsets}
           .toVector
           .last
 
-      val expectedMap =
+      val expectedMap: Map[TopicPartition, OffsetMetadata] =
         consumerRecords.groupBy(_.topicPartition)
-          .map{ case (k, v) => k -> v.map(_.offset).max }
+          .map{ case (k, v) => k -> OffsetMetadata(v.map(_.offset).max) }
 
-      finalMap === expectedMap
+      finalMap shouldBe expectedMap
     }
   }
 
