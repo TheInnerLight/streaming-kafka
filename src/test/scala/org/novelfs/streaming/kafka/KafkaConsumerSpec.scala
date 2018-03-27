@@ -57,7 +57,9 @@ class KafkaConsumerSpec extends FlatSpec with Matchers with MockFactory with Gen
 
       KafkaConsumer.commitOffsetMap[IO, String, String](kafkaConsumer)(offsetMap)(errorSignal).unsafeRunSync()
 
-      (IO{Thread.sleep(100)} *> errorSignal.get).unsafeRunSync() shouldBe true
+      val signalTrue = errorSignal.discrete.dropWhile(!_).head.compile.toList.unsafeRunSync().head
+
+      signalTrue shouldBe true
     }
   }
 
