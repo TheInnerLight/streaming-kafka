@@ -1,10 +1,6 @@
-package org.novelfs.streaming.kafka
+package org.novelfs.streaming.kafka.consumer
 
-/**
-  * @param key The key of the header
-  * @param value The value of the header
-  */
-final case class KafkaHeader(key : String, value : Array[Byte])
+import org.novelfs.streaming.kafka.{KafkaHeader, TopicPartition}
 
 /**
   * @param topicPartition The topic and partition this record was received from
@@ -16,7 +12,7 @@ final case class KafkaHeader(key : String, value : Array[Byte])
   * @param serializedValueSize The length of the serialised value, if it exists
   * @param headers The headers associated with the record
   */
-final case class KafkaRecord[K, V] (
+final case class ConsumerRecord[K, V](
     topicPartition : TopicPartition,
     offset : Long,
     key : K,
@@ -27,7 +23,7 @@ final case class KafkaRecord[K, V] (
     headers : List[KafkaHeader]
     )
 
-object KafkaRecord {
-  def apply[K, V](topicPartition: TopicPartition, offset: Long, key: K, value: V): KafkaRecord[K, V] =
-    new KafkaRecord(topicPartition, offset, key, value, None, None, None, List.empty)
+object ConsumerRecord {
+  def apply[K, V](topicPartition: TopicPartition, offset: Long, key: K, value: V): ConsumerRecord[K, V] =
+    new ConsumerRecord(topicPartition, offset, key, value, None, None, None, List.empty)
 }

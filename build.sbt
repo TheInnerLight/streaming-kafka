@@ -19,6 +19,7 @@ libraryDependencies ++= Seq(
   , "org.apache.kafka" %% "kafka" % "1.0.0"
   , "co.fs2" %% "fs2-core" % "0.10.1"
   , "co.fs2" %% "fs2-io" % "0.10.1"
+  , "net.manub" %% "scalatest-embedded-kafka" % "1.1.0" % Test
 )
 
 addCompilerPlugin("org.spire-math" %% "kind-projector" % "0.9.4")

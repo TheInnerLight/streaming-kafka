@@ -1,10 +1,11 @@
-package org.novelfs.streaming.kafka
+package org.novelfs.streaming.kafka.consumer
 
 import java.util.Properties
+
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.common.serialization.Deserializer
-import org.apache.kafka.common.config.SslConfigs
-import org.apache.kafka.clients.CommonClientConfigs
+import org.novelfs.streaming.kafka._
+
 import scala.concurrent.duration._
 
 case class KafkaConsumerConfig[K, V](
@@ -53,27 +54,13 @@ object KafkaConsumerConfig {
     props.put(ConsumerConfig.GROUP_ID_CONFIG,           kafkaConsumerConfig.groupId)
     kafkaConsumerConfig.security match {
       case KafkaSecuritySettings.EncryptedAndAuthenticated(encryptionSettings, authSettings) =>
-        addEncryptionProps(addAuthenticationProps(props)(authSettings))(encryptionSettings)
+        KafkaSecuritySettings.addEncryptionProps(KafkaSecuritySettings.addAuthenticationProps(props)(authSettings))(encryptionSettings)
       case KafkaSecuritySettings.EncryptedNotAuthenticated(encryptionSettings) =>
-        addEncryptionProps(props)(encryptionSettings)
+        KafkaSecuritySettings.addEncryptionProps(props)(encryptionSettings)
       case KafkaSecuritySettings.AuthenticatedNotEncrypted(authSettings) =>
-        addAuthenticationProps(props)(authSettings)
+        KafkaSecuritySettings.addAuthenticationProps(props)(authSettings)
       case KafkaSecuritySettings.NoSecurity =>
         props
     }
-  }
-
-  private def addEncryptionProps(props: Properties)(encryptionSettings: KafkaEncryptionSettings) = {
-    props.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, "SSL")
-    props.put(SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG, encryptionSettings.trustStoreLocation)
-    props.put(SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG, encryptionSettings.trustStorePassword)
-    props
-  }
-
-  private def addAuthenticationProps(props: Properties)(authSettings: KafkaAuthenticationSettings) = {
-    props.put(SslConfigs.SSL_KEYSTORE_LOCATION_CONFIG, authSettings.keyStoreLocation)
-    props.put(SslConfigs.SSL_KEYSTORE_PASSWORD_CONFIG, authSettings.keyStorePassword)
-    props.put(SslConfigs.SSL_KEY_PASSWORD_CONFIG, authSettings.keyPassword)
-    props
   }
 }
