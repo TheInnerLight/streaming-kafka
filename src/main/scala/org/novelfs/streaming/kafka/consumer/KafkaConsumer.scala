@@ -14,7 +14,7 @@ import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.FiniteDuration
 import KafkaSdkConversions._
 import cats.Functor
-import fs2.async.mutable.{Queue}
+import fs2.async.mutable.{Queue, Signal}
 
 final case class KafkaConsumer[K, V] private (kafkaConsumer : ApacheKafkaConsumer[K, V])
 
@@ -25,16 +25,22 @@ object KafkaConsumer {
   /**
     * An effect to commit supplied map of offset metadata for each topic/partition pair
     */
-  def commitOffsetMap[F[_] : Async, K, V](consumer : KafkaConsumer[K, V])(offsetMap : Map[TopicPartition, OffsetMetadata]): F[Unit] =
-    Async[F].async { (cb: Either[Throwable, Unit] => Unit) =>
-      consumer.kafkaConsumer.commitAsync(offsetMap.toKafkaSdk, (_: java.util.Map[_, _], exception: Exception) => Option(exception) match {
-        case None =>
-          log.debug(s"Offset committed: $offsetMap")
-          cb(Right(()))
-        case Some(ex) =>
-          log.error("Error committing offset", ex)
-          cb(Left(ex))
-      })
+  def commitOffsetMap[F[_] : Effect, K, V](consumer : KafkaConsumer[K, V])(offsetMap : Map[TopicPartition, OffsetMetadata])(errorSignal : Signal[F, Boolean])(implicit ec: ExecutionContext): F[Unit] =
+    async.fork {
+      Async[F].async { (cb: Either[Throwable, Unit] => Unit) =>
+        consumer.kafkaConsumer.commitAsync(offsetMap.toKafkaSdk, (_: java.util.Map[_, _], exception: Exception) => Option(exception) match {
+          case None =>
+            log.debug(s"Offset committed: $offsetMap")
+            cb(Right(()))
+          case Some(ex) =>
+            async.unsafeRunAsync(errorSignal.set(true)){
+              case Right(_) => IO.unit
+              case Left(_) => IO.unit
+            }
+            log.error("Error committing offset", ex)
+            cb(Left(ex))
+        })
+      }
     }
 
   /**
@@ -44,20 +50,6 @@ object KafkaConsumer {
     _.zipWithScan1(Map.empty[TopicPartition, OffsetMetadata])((map, record) => map + (record.topicPartition -> OffsetMetadata(record.offset)))
 
   /**
-    * A pipe that commits the final available offset data for each topic/partition pair for the supplied input stream of Consumer Records
-    */
-  def commitFinalOffsets[F[_] : Async, K, V](consumer : KafkaConsumer[K, V]) : Pipe[F, Map[TopicPartition, OffsetMetadata], Map[TopicPartition, OffsetMetadata]] =
-    _.noneTerminate
-      .zipWithPrevious
-      .observe1 {
-        case (Some(Some((offsetMap))), None) => commitOffsetMap(consumer)(offsetMap)
-        case _ => Async[F].unit
-      }
-      .map {case (_, valueAndOffsetMap) => valueAndOffsetMap}
-      .unNoneTerminate
-
-
-  /**
     * A convenience pipe that accumulates offset metadata and publishes them to the supplied queue
     */
   def publishOffsetsToQueue[F[_] : Functor, K, V](queue : Queue[F, Map[TopicPartition, OffsetMetadata]]): Sink[F, ConsumerRecord[K,V]] =
@@ -65,12 +57,17 @@ object KafkaConsumer {
       .map{case (_,offsetMap) => offsetMap}
       .to(queue.enqueue)
 
-
-  def commitOffsetsFromQueueEvery[F[_] : Effect, K, V](consumer : KafkaConsumer[K, V])(queue : Queue[F, Map[TopicPartition, OffsetMetadata]])(timeBetweenCommits : FiniteDuration)(implicit ec : ExecutionContext) =
-    queue.dequeue
-      .through(commitFinalOffsets(consumer))
-      .takeElementsEvery(timeBetweenCommits)
-      .evalMap {offsetMap => commitOffsetMap(consumer)(offsetMap)}
+  /**
+    * A stream that commits the offsets in the supplied queue to kafka, using the supplied kafka consumer every supplied timeBetweenCommits
+    */
+  def commitOffsetsFromQueueEvery[F[_] : Effect, K, V](timeBetweenCommits : FiniteDuration)(consumer : KafkaConsumer[K, V])(queue : Queue[F, Map[TopicPartition, OffsetMetadata]])(implicit ec : ExecutionContext): Stream[F, Unit] =
+    for {
+      errorSignal <- Stream.eval(async.signalOf[F, Boolean](false))
+      xs <- queue.dequeue
+        .takeElementsEvery(timeBetweenCommits)
+        .evalMap { offsetMap => commitOffsetMap(consumer)(offsetMap)(errorSignal) }
+        .interruptWhen(errorSignal)
+    } yield xs
 
   /**
     * An effect that generates a subscription to some Kafka topics/paritions using the supplied kafka config
@@ -125,7 +122,7 @@ object KafkaConsumer {
                 for {
                   queue <- Stream.eval(Queue.bounded[F, Map[TopicPartition, OffsetMetadata]](maxAsyncCommits))
                   y <- s.to(publishOffsetsToQueue(queue))
-                    .concurrently(commitOffsetsFromQueueEvery(consumer)(queue)(timeBetweenCommits))
+                    .concurrently(commitOffsetsFromQueueEvery(timeBetweenCommits)(consumer)(queue))
 
                 } yield y
               case _ => Stream.empty

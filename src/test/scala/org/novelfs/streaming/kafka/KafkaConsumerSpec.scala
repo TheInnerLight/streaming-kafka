@@ -1,5 +1,6 @@
 package org.novelfs.streaming.kafka
 
+import cats.implicits._
 import cats.effect._
 import org.scalamock.scalatest.MockFactory
 import org.scalatest.{FlatSpec, Matchers}
@@ -12,6 +13,7 @@ import fs2._
 import org.apache.kafka.common.serialization.Deserializer
 import KafkaSdkConversions._
 import org.novelfs.streaming.kafka.consumer.{KafkaConsumer, OffsetMetadata}
+import scala.concurrent.ExecutionContext.Implicits.global
 
 class KafkaConsumerSpec extends FlatSpec with Matchers with MockFactory with GeneratorDrivenPropertyChecks with DomainArbitraries {
 
@@ -36,9 +38,26 @@ class KafkaConsumerSpec extends FlatSpec with Matchers with MockFactory with Gen
       val javaMap = offsetMap.toKafkaSdk
 
       (rawKafkaConsumer.commitAsync(_ : java.util.Map[org.apache.kafka.common.TopicPartition,  org.apache.kafka.clients.consumer.OffsetAndMetadata], _ : OffsetCommitCallback))
-          .expects (javaMap, *) onCall { (_, callback) => callback.onComplete(javaMap, null) } once()
+        .expects (javaMap, *) onCall { (_, callback) => callback.onComplete(javaMap, null) } once()
 
-      KafkaConsumer.commitOffsetMap[IO, String, String](kafkaConsumer)(offsetMap).unsafeRunSync()
+      val errorSignal = async.signalOf[IO, Boolean](false).unsafeRunSync()
+
+      KafkaConsumer.commitOffsetMap[IO, String, String](kafkaConsumer)(offsetMap)(errorSignal).unsafeRunSync()
+    }
+  }
+
+  "commit offset map" should "trigger the error signal if an error was received from the callback" in {
+    forAll { (offsetMap : Map[TopicPartition, OffsetMetadata]) =>
+      val javaMap = offsetMap.toKafkaSdk
+
+      (rawKafkaConsumer.commitAsync(_ : java.util.Map[org.apache.kafka.common.TopicPartition,  org.apache.kafka.clients.consumer.OffsetAndMetadata], _ : OffsetCommitCallback))
+        .expects (javaMap, *) onCall { (_, callback) => callback.onComplete(javaMap, new Exception("Red alert!")) } once()
+
+      val errorSignal = async.signalOf[IO, Boolean](false).unsafeRunSync()
+
+      KafkaConsumer.commitOffsetMap[IO, String, String](kafkaConsumer)(offsetMap)(errorSignal).unsafeRunSync()
+
+      (IO{Thread.sleep(100)} *> errorSignal.get).unsafeRunSync() shouldBe true
     }
   }
 
