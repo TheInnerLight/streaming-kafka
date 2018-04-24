@@ -125,7 +125,7 @@ object KafkaConsumer {
                     .concurrently(commitOffsetsFromQueueEvery(timeBetweenCommits)(consumer)(queue))
 
                 } yield y
-              case _ => Stream.empty
+              case _ => s.drain
             }
           )
           .through(deserializer(config.keyDeserializer, config.valueDeserializer))
