@@ -20,7 +20,8 @@ class KafkaConsumerSpec extends FlatSpec with Matchers with MockFactory with Gen
   val rawKafkaConsumer = mock[ApacheKafkaConsumer[String, String]]
   val kafkaConsumer = KafkaConsumer(rawKafkaConsumer)
 
-  "cleanupConsumer" should "call consumer.close()" in {
+  "cleanupConsumer" should "call consumer.wakeup() and consumer.close()" in {
+    (rawKafkaConsumer.wakeup _ : () => Unit) expects() once()
     (rawKafkaConsumer.close _ : () => Unit) expects() once()
     KafkaConsumer.cleanupConsumer[IO, String, String](kafkaConsumer).unsafeRunSync()
   }

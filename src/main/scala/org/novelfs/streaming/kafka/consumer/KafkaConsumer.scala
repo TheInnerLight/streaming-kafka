@@ -81,7 +81,8 @@ object KafkaConsumer {
     * An effect that disposes of some supplied kafka consumer
     */
   def cleanupConsumer[F[_] : Sync, K, V](consumer : KafkaConsumer[K, V]): F[Unit] =
-    Sync[F].delay(consumer.kafkaConsumer.close())
+    Sync[F].delay(consumer.kafkaConsumer.wakeup()) *>
+      Sync[F].delay(consumer.kafkaConsumer.close())
 
   /**
     * An effect that polls kafka (once) with a supplied timeout
