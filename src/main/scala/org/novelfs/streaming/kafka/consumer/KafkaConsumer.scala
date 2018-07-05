@@ -115,7 +115,7 @@ object KafkaConsumer {
     Stream.bracket(subscribeToConsumer(config))(consumer =>
       for {
         records <- Stream.repeatEval(pollKafka(consumer)(config.pollTimeout))
-        process <- Stream.emits(records)
+        process <- Stream.chunk(Chunk.vector(records))
           .covary[F]
           .observe(s =>
             config.commitOffsetSettings match {
