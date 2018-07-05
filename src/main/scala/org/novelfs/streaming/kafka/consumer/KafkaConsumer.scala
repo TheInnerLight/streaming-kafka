@@ -114,7 +114,7 @@ object KafkaConsumer {
   def apply[F[_] : Effect, K, V](config : KafkaConsumerConfig[K, V])(implicit ex : ExecutionContext): Stream[F, Either[Throwable, ConsumerRecord[K, V]]] =
     Stream.bracket(subscribeToConsumer(config))(consumer =>
       for {
-        records <- Stream.repeatEval(pollKafka(consumer)(config.pollTimeout))
+        records <- Stream.repeatEval(pollKafka(consumer)(config.pollTimeout)).scope
         process <- Stream.chunk(Chunk.vector(records))
           .covary[F]
           .observe(s =>

@@ -17,8 +17,8 @@ libraryDependencies ++= Seq(
   , "org.scalacheck" %% "scalacheck" % "1.13.4" % Test
   , "org.typelevel" %% "cats-effect" % catsEffectVersion
   , "org.apache.kafka" %% "kafka" % "1.0.0"
-  , "co.fs2" %% "fs2-core" % "0.10.1"
-  , "co.fs2" %% "fs2-io" % "0.10.1"
+  , "co.fs2" %% "fs2-core" % "0.10.5"
+  , "co.fs2" %% "fs2-io" % "0.10.5"
   , "net.manub" %% "scalatest-embedded-kafka" % "1.1.0" % Test
 )
 
