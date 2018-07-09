@@ -8,13 +8,12 @@ import org.apache.kafka.common.serialization.{ByteArrayDeserializer, Deserialize
 import org.novelfs.streaming.kafka._
 import org.novelfs.streaming.kafka.ops._
 import org.slf4j.LoggerFactory
-
 import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.FiniteDuration
-import KafkaSdkConversions._
 import cats.Functor
 import fs2.async.mutable.{Queue, Signal}
+import KafkaSdkConversions._
 
 final case class KafkaConsumer[K, V] private (kafkaConsumer : ApacheKafkaConsumer[K, V])
 
@@ -28,7 +27,7 @@ object KafkaConsumer {
   def commitOffsetMap[F[_] : Effect, K, V](consumer : KafkaConsumer[K, V])(offsetMap : Map[TopicPartition, OffsetMetadata])(errorSignal : Signal[F, Boolean])(implicit ec: ExecutionContext): F[Unit] =
     async.fork {
       Async[F].async { (cb: Either[Throwable, Unit] => Unit) =>
-        consumer.kafkaConsumer.commitAsync(offsetMap.toKafkaSdk, (_: java.util.Map[_, _], exception: Exception) => Option(exception) match {
+        consumer.kafkaConsumer.commitAsync(offsetMap.toKafkaSdk, (_: java.util.Map[org.apache.kafka.common.TopicPartition, org.apache.kafka.clients.consumer.OffsetAndMetadata], exception: Exception) => Option(exception) match {
           case None =>
             log.debug(s"Offset committed: $offsetMap")
             cb(Right(()))
