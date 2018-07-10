@@ -60,4 +60,5 @@ class KafkaProducerSpec extends FlatSpec with Matchers with MockFactory with Gen
       vs should contain theSameElementsAs expectedVals
     }
   }
+
 }

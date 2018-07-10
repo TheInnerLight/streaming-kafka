@@ -1,25 +1,23 @@
 import ReleaseTransformations._
 
 name := "streaming-kafka"
-scalaVersion := "2.12.4"
+scalaVersion := "2.12.6"
 organization := "org.novelfs"
 
-val catsEffectVersion = "0.8"
 val kafkaSerializationV = "0.3.2"
 val scalatestVersion = "3.0.4"
 val typesafeConfigVersion = "1.3.1"
 
 libraryDependencies ++= Seq(
-  "com.typesafe" % "config" % typesafeConfigVersion
-  , "org.scalactic" %% "scalactic" % scalatestVersion
-  , "org.scalatest" %% "scalatest" % scalatestVersion % Test
-  , "org.scalamock" %% "scalamock" % "4.1.0" % Test
-  , "org.scalacheck" %% "scalacheck" % "1.13.4" % Test
-  , "org.typelevel" %% "cats-effect" % catsEffectVersion
-  , "org.apache.kafka" %% "kafka" % "1.0.0"
-  , "co.fs2" %% "fs2-core" % "0.10.5"
-  , "co.fs2" %% "fs2-io" % "0.10.5"
-  , "net.manub" %% "scalatest-embedded-kafka" % "1.1.0" % Test
+  "com.typesafe"        % "config"                    % typesafeConfigVersion
+  , "org.scalactic"     %% "scalactic"                % scalatestVersion
+  , "org.scalatest"     %% "scalatest"                % scalatestVersion      % Test
+  , "org.scalamock"     %% "scalamock"                % "4.1.0"               % Test
+  , "org.scalacheck"    %% "scalacheck"               % "1.13.4"              % Test
+  , "org.apache.kafka"  %% "kafka"                    % "1.0.0"
+  , "co.fs2"            %% "fs2-core"                 % "0.10.5"
+  , "co.fs2"            %% "fs2-io"                   % "0.10.5"
+  , "net.manub"         %% "scalatest-embedded-kafka" % "1.1.0"               % Test
 )
 
 addCompilerPlugin("org.spire-math" %% "kind-projector" % "0.9.4")
@@ -96,7 +94,7 @@ scmInfo := Some(
 )
 
 releaseCrossBuild := true
-crossScalaVersions := Seq("2.11.12", "2.12.4")
+crossScalaVersions := Seq("2.11.12", "2.12.6")
 
 useGpg := false
 pgpSecretRing := file("local.secring.gpg")
