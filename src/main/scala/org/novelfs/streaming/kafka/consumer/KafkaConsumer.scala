@@ -51,10 +51,10 @@ object KafkaConsumer {
   /**
     * A convenience pipe that accumulates offset metadata and publishes them to the supplied queue
     */
-  def publishOffsetsToQueue[F[_] : Functor, K, V](queue : Queue[F, Map[TopicPartition, OffsetMetadata]]): Sink[F, ConsumerRecord[K,V]] =
+  def publishOffsetsToQueue[F[_] : Functor, K, V](queue : Queue[F, Map[TopicPartition, OffsetMetadata]]): Pipe[F, ConsumerRecord[K, V], ConsumerRecord[K, V]] =
     _.through(accumulateOffsetMetadata)
-      .map{case (_,offsetMap) => offsetMap}
-      .to(queue.enqueue)
+      .observe1{case (_, offsetMap) => queue.enqueue1(offsetMap)}
+      .map{case (value, _) => value}
 
   /**
     * A stream that commits the offsets in the supplied queue to kafka, using the supplied kafka consumer every supplied timeBetweenCommits
@@ -107,6 +107,21 @@ object KafkaConsumer {
   def topicPartitionAssignments[F[_] : Sync, K, V](consumer : KafkaConsumer[K, V]): F[Set[TopicPartition]] =
     Sync[F].delay { consumer.kafkaConsumer.assignment().fromKafkaSdk }
 
+
+  /**
+    * A pipe that applies the kafka offset commit settings policy from the config
+    */
+  def applyCommitPolicy[F[_] : Effect, K, V](consumer : KafkaConsumer[Array[Byte], Array[Byte]])(config : KafkaConsumerConfig[K, V])(implicit ex : ExecutionContext) : Pipe[F, ConsumerRecord[Array[Byte], Array[Byte]], ConsumerRecord[Array[Byte], Array[Byte]]] =
+    stream => config.commitOffsetSettings match {
+        case KafkaOffsetCommitSettings.AutoCommit(timeBetweenCommits, maxAsyncCommits) =>
+          for {
+            queue <- Stream.eval(Queue.bounded[F, Map[TopicPartition, OffsetMetadata]](maxAsyncCommits))
+            y <- stream.through(publishOffsetsToQueue(queue))
+              .concurrently(commitOffsetsFromQueueEvery(timeBetweenCommits)(consumer)(queue))
+          } yield y
+        case _ => stream
+      }
+
   /**
     * Creates a streaming subscription using the supplied kafka configuration
     */
@@ -116,18 +131,7 @@ object KafkaConsumer {
         records <- Stream.repeatEval(pollKafka(consumer)(config.pollTimeout)).scope
         process <- Stream.chunk(Chunk.vector(records))
           .covary[F]
-          .observe(s =>
-            config.commitOffsetSettings match {
-              case KafkaOffsetCommitSettings.AutoCommit(timeBetweenCommits, maxAsyncCommits) =>
-                for {
-                  queue <- Stream.eval(Queue.bounded[F, Map[TopicPartition, OffsetMetadata]](maxAsyncCommits))
-                  y <- s.to(publishOffsetsToQueue(queue))
-                    .concurrently(commitOffsetsFromQueueEvery(timeBetweenCommits)(consumer)(queue))
-
-                } yield y
-              case _ => s.drain
-            }
-          )
+          .through(applyCommitPolicy(consumer)(config))
           .through(deserializer(config.keyDeserializer, config.valueDeserializer))
       } yield process, cleanupConsumer[F, Array[Byte], Array[Byte]])
 }
