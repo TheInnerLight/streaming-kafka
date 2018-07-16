@@ -26,7 +26,6 @@ object KafkaConsumer {
     Sync[F].delay(consumer.kafkaConsumer.commitAsync(offsetMap.toKafkaSdk, (_: java.util.Map[org.apache.kafka.common.TopicPartition, org.apache.kafka.clients.consumer.OffsetAndMetadata], exception: Exception) => Option(exception) match {
       case None =>
         log.debug(s"Offset committed: $offsetMap")
-        println(s"Offset committed: $offsetMap")
       case Some(ex) =>
         async.unsafeRunAsync(errorSignal.set(true))(_ => IO.unit)
         log.error("Error committing offset", ex)
@@ -47,7 +46,6 @@ object KafkaConsumer {
       stream <- s.through(accumulateOffsetMetadata)
         .observe1{ case (_, offsetMap) =>
           Sync[F].delay(log.debug(s"Offset commit requested: $offsetMap"))*>
-            Sync[F].delay(println(s"Offset commit requested: $offsetMap"))*>
             commitOffsetMap(consumer)(offsetMap)(errorSignal)
         }
         .map{case (value, _) => value}
