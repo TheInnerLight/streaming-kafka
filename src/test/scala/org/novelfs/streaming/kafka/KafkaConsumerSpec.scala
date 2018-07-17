@@ -41,26 +41,27 @@ class KafkaConsumerSpec extends FlatSpec with Matchers with MockFactory with Gen
       (rawKafkaConsumer.commitAsync(_ : java.util.Map[org.apache.kafka.common.TopicPartition,  org.apache.kafka.clients.consumer.OffsetAndMetadata], _ : OffsetCommitCallback))
         .expects (javaMap, *) onCall { (_, callback) => callback.onComplete(javaMap, null) } once()
 
-      val errorSignal = async.signalOf[IO, Boolean](false).unsafeRunSync()
+      val errorSemaphore = async.semaphore[IO](10).unsafeRunSync()
 
-      (KafkaConsumer.commitOffsetMap[IO, String, String](kafkaConsumer)(offsetMap)(errorSignal) *> IO{Thread.sleep(500)}).unsafeRunSync()
+      (KafkaConsumer.commitOffsetMap[IO, String, String](kafkaConsumer)(offsetMap)(errorSemaphore) *> IO{Thread.sleep(500)}).unsafeRunSync()
     }
   }
 
-  "commit offset map" should "trigger the error signal if an error was received from the callback" in {
+  "commit offset map" should "decrement the semaphore if an error was received from the callback" in {
     forAll { (offsetMap : Map[TopicPartition, OffsetMetadata]) =>
       val javaMap = offsetMap.toKafkaSdk
 
       (rawKafkaConsumer.commitAsync(_ : java.util.Map[org.apache.kafka.common.TopicPartition,  org.apache.kafka.clients.consumer.OffsetAndMetadata], _ : OffsetCommitCallback))
         .expects (javaMap, *) onCall { (_, callback) => callback.onComplete(javaMap, new Exception("Red alert!")) } once()
 
-      val errorSignal = async.signalOf[IO, Boolean](false).unsafeRunSync()
+      val errorSemaphore = async.semaphore[IO](10).unsafeRunSync()
 
-      KafkaConsumer.commitOffsetMap[IO, String, String](kafkaConsumer)(offsetMap)(errorSignal).unsafeRunSync()
+      KafkaConsumer.commitOffsetMap[IO, String, String](kafkaConsumer)(offsetMap)(errorSemaphore).unsafeRunSync()
 
-      val signalTrue = errorSignal.discrete.dropWhile(!_).head.compile.toList.unsafeRunSync().head
+      Thread.sleep(1000)
 
-      signalTrue shouldBe true
+      val semaphore = errorSemaphore.available.unsafeRunSync()
+      semaphore shouldBe 9
     }
   }
 
