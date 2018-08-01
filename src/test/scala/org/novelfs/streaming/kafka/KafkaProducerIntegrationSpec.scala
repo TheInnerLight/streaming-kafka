@@ -46,6 +46,7 @@ class KafkaProducerIntegrationSpec extends FlatSpec with Matchers with Generator
 
         val consumerStream = KafkaConsumer[IO, String, String](consumerConfig)
         val producerStream = Stream.emits(topicCorrectProducerRecords)
+          .repeat
           .covary[IO]
           .through(KafkaProducer(producerConfig))
 
@@ -56,19 +57,21 @@ class KafkaProducerIntegrationSpec extends FlatSpec with Matchers with Generator
           .collect {
             case Right(r) => r
           }
-          .take(producerRecords.size.toLong)
+          //.take(producerRecords.size.toLong)
           .compile
-          .toList
+          .drain
           .unsafeRunSync()
 
-        val expectedKeys = producerRecords.map(_.key)
-        val expectedVals = producerRecords.map(_.value)
+//        val expectedKeys = producerRecords.map(_.key)
+//        val expectedVals = producerRecords.map(_.value)
+//
+//        val ks = results.map(_.key)
+//        val vs = results.map(_.value)
+//
+//        ks should contain theSameElementsAs expectedKeys
+//        vs should contain theSameElementsAs expectedVals
 
-        val ks = results.map(_.key)
-        val vs = results.map(_.value)
-
-        ks should contain theSameElementsAs expectedKeys
-        vs should contain theSameElementsAs expectedVals
+        results shouldBe (())
       }
     }
   }
