@@ -4,13 +4,14 @@ name := "streaming-kafka"
 scalaVersion := "2.12.4"
 organization := "org.novelfs"
 
-val catsEffectVersion = "0.8"
+val catsEffectVersion = "1.0.0-RC2"
 val kafkaSerializationV = "0.3.2"
 val scalatestVersion = "3.0.4"
 val typesafeConfigVersion = "1.3.1"
 
 libraryDependencies ++= Seq(
-  "com.typesafe" % "config" % typesafeConfigVersion
+  "ch.qos.logback" % "logback-classic" % "1.2.3" % Test
+  , "com.typesafe" % "config" % typesafeConfigVersion
   , "org.scalactic" %% "scalactic" % scalatestVersion
   , "org.scalatest" %% "scalatest" % scalatestVersion % Test
   , "org.scalamock" %% "scalamock" % "4.1.0" % Test

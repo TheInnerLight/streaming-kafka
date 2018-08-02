@@ -38,8 +38,8 @@ object KafkaConsumerConfig {
       topics = topics,
       clientId = clientId,
       groupId = groupId,
-      commitOffsetSettings = KafkaOffsetCommitSettings.AutoCommit(500.milliseconds, 10000000),
-      pollTimeout = 50000.milliseconds,
+      commitOffsetSettings = KafkaOffsetCommitSettings.AutoCommit(500.milliseconds),
+      pollTimeout = 5000.milliseconds,
       maxPollRecords = 10000,
       keyDeserializer = keyDeserializer,
       valueDeserializer = valueDeserializer)

@@ -48,6 +48,7 @@ class KafkaProducerIntegrationSpec extends FlatSpec with Matchers with Generator
         val producerStream = Stream.emits(topicCorrectProducerRecords)
           .repeat
           .covary[IO]
+          //.observe1(_ => IO.sleep(FiniteDuration(4000, "ms")))
           .through(KafkaProducer(producerConfig))
 
         // run the consumer stream and producer stream in parallel and collect up the results into a list
