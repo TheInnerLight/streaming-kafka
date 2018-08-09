@@ -25,14 +25,13 @@ object KafkaConsumer {
   /**
     * An effect to commit supplied map of offset metadata for each topic/partition pair
     */
-  def commitOffsetMap[F[_] : Effect, K, V](consumerVar : MVar[F, KafkaConsumer[K, V]])(offsetMap : Map[TopicPartition, OffsetMetadata])(errorSignal : Signal[F, Boolean])(implicit ec: ExecutionContext): F[Unit] =
+  def commitOffsetMap[F[_] : Sync, K, V](consumerVar : MVar[F, KafkaConsumer[K, V]])(offsetMap : Map[TopicPartition, OffsetMetadata])(errorSignal : Signal[F, Boolean]): F[Unit] =
     for {
       consumer <- consumerVar.take
-      _ <- Effect[F].delay {
-          println(ec)
+      _ <- Sync[F].delay {
           consumer.kafkaConsumer.commitSync(offsetMap.toKafkaSdk)
           log.debug(s"Offset committed: $offsetMap")
-        }.onError{case ex =>
+        }.handleErrorWith{case ex =>
           log.error("Error during offset commit", ex)
           errorSignal.set(true)
         }
@@ -122,7 +121,6 @@ object KafkaConsumer {
     */
   def topicPartitionAssignments[F[_] : Sync, K, V](consumer : KafkaConsumer[K, V]): F[Set[TopicPartition]] =
     Sync[F].delay { consumer.kafkaConsumer.assignment().fromKafkaSdk }
-
 
   /**
     * A pipe that applies the kafka offset commit settings policy from the config
