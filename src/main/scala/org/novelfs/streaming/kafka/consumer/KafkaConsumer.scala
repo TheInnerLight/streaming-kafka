@@ -3,41 +3,23 @@ package org.novelfs.streaming.kafka.consumer
 import cats.effect._
 import cats.implicits._
 import fs2._
-import org.apache.kafka.clients.consumer.{Consumer => ApacheKafkaConsumer, KafkaConsumer => ConcreteApacheKafkaConsumer}
+import org.apache.kafka.clients.consumer.{Consumer => ApacheKafkaConsumer}
 import org.apache.kafka.common.serialization.{ByteArrayDeserializer, Deserializer}
 import org.novelfs.streaming.kafka._
 import org.slf4j.LoggerFactory
-
-import scala.collection.JavaConverters._
+import org.novelfs.streaming.kafka.utils._
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.FiniteDuration
 import cats.Functor
 import fs2.async.mutable.{Queue, Signal}
-import KafkaSdkConversions._
 import cats.effect.concurrent.MVar
+import org.novelfs.streaming.kafka.interpreter.ThinKafkaConsumerClient
 
 final case class KafkaConsumer[K, V] private (kafkaConsumer : ApacheKafkaConsumer[K, V])
 
 object KafkaConsumer {
 
   private val log = LoggerFactory.getLogger(KafkaConsumer.getClass)
-
-  /**
-    * An effect to commit supplied map of offset metadata for each topic/partition pair
-    */
-  def commitOffsetMap[F[_] : Sync, K, V](consumerVar : MVar[F, KafkaConsumer[K, V]])(offsetMap : Map[TopicPartition, OffsetMetadata])(errorSignal : Signal[F, Boolean]): F[Unit] =
-    for {
-      consumer <- consumerVar.take
-      _ <- Sync[F].delay {
-          consumer.kafkaConsumer.commitSync(offsetMap.toKafkaSdk)
-          log.debug(s"Offset committed: $offsetMap")
-        }.handleErrorWith{case ex =>
-          log.error("Error during offset commit", ex)
-          errorSignal.set(true)
-        }
-      _ <- consumerVar.put(consumer)
-    } yield ()
-
 
   /**
     * A pipe that accumulates the offset metadata for each topic/partition pair for the supplied input stream of Consumer Records
@@ -56,53 +38,21 @@ object KafkaConsumer {
   /**
     * A stream that commits the offsets in the supplied queue to kafka, using the supplied kafka consumer every supplied timeBetweenCommits
     */
-  def commitOffsetsFromQueueEvery[F[_] : Effect, K, V](timeBetweenCommits : FiniteDuration)(consumer : MVar[F, KafkaConsumer[K, V]])(errorSignal : Signal[F, Boolean])(queue : Queue[F, Map[TopicPartition, OffsetMetadata]])(implicit ec : ExecutionContext): Stream[F, Unit] =
+  def commitOffsetsFromQueueEvery[F[_] : ConcurrentEffect, K, V](timeBetweenCommits : FiniteDuration)(lockedConsumer : MVar[F, KafkaConsumerSubscription[K, V]])(errorSignal : Signal[F, Boolean])(queue : Queue[F, Map[TopicPartition, OffsetMetadata]])(implicit ec : ExecutionContext): Stream[F, Unit] =
     for {
       obs <- async.hold(Map.empty[TopicPartition, OffsetMetadata], queue.dequeue)
       scheduler <- Scheduler[F](corePoolSize = 2)
       xs <- scheduler
         .fixedRate(timeBetweenCommits).evalMap(_ => obs.get)
-        .evalMap { offsetMap => commitOffsetMap(consumer)(offsetMap)(errorSignal) }
+        .evalMap { offsetMap =>
+          lockedConsumer
+            .locked(consumer => ThinKafkaConsumerClient[F].commitOffsetMap(offsetMap)(consumer))
+            .handleErrorWith { case ex =>
+              log.error("Error during offset commit", ex)
+              errorSignal.set(true)
+            }
+        }
     } yield xs
-
-  /**
-    * An effect that generates a subscription to some Kafka topics/paritions using the supplied kafka config
-    */
-  def createConsumer[F[_] : Sync, K, V](config : KafkaConsumerConfig[K, V]): F[KafkaConsumer[Array[Byte], Array[Byte]]] =
-    Sync[F].point(KafkaConsumer(new ConcreteApacheKafkaConsumer(KafkaConsumerConfig.generateProperties(config), new ByteArrayDeserializer(), new ByteArrayDeserializer())))
-
-  /**
-    * An effect that generates a subscription to some Kafka topics/paritions using the supplied kafka config
-    */
-  def subscribeToConsumer[F[_] : ConcurrentEffect, K, V](config : KafkaConsumerConfig[K, V]): F[MVar[F, KafkaConsumer[Array[Byte], Array[Byte]]]] = {
-    val consumer = new ConcreteApacheKafkaConsumer(KafkaConsumerConfig.generateProperties(config), new ByteArrayDeserializer(), new ByteArrayDeserializer())
-    ConcurrentEffect[F].delay (consumer.subscribe(config.topics.asJava)) *> MVar.of[F, KafkaConsumer[Array[Byte], Array[Byte]]](KafkaConsumer(consumer))
-  }
-
-  def subscribe[F[_] : Sync, K, V](config : KafkaConsumerConfig[K, V])(consumer : KafkaConsumer[K, V]): F[KafkaConsumer[K, V]] = {
-    Sync[F].delay (consumer.kafkaConsumer.subscribe(config.topics.asJava)) *> Sync[F].point(consumer)
-  }
-
-  /**
-    * An effect that disposes of some supplied kafka consumer
-    */
-  def cleanupConsumer[F[_] : Sync, K, V](consumerVar : MVar[F, KafkaConsumer[K, V]]): F[Unit] =
-    for {
-      consumer <- consumerVar.take
-      _ <- Sync[F].delay(consumer.kafkaConsumer.wakeup())
-      _ <- Sync[F].delay(consumer.kafkaConsumer.close())
-    } yield ()
-
-  /**
-    * An effect that polls kafka (once) with a supplied timeout
-    */
-  def pollKafka[F[_] : Effect, K, V](consumerVar : MVar[F, KafkaConsumer[K, V]])(pollTimeout : FiniteDuration): F[Vector[ConsumerRecord[K, V]]] =
-    for {
-      consumer <- consumerVar.take
-      response <- Sync[F].delay(consumer.kafkaConsumer.poll(pollTimeout.toMillis).fromKafkaSdk)
-      _ <- consumerVar.put(consumer)
-    } yield response
-
 
   /**
     * A pipe that deserialises an array of bytes using supplied key and value deserialisers
@@ -117,15 +67,9 @@ object KafkaConsumer {
     )
 
   /**
-    * An effect to return the set of topic and partition assignments attached to the supplied consumer
-    */
-  def topicPartitionAssignments[F[_] : Sync, K, V](consumer : KafkaConsumer[K, V]): F[Set[TopicPartition]] =
-    Sync[F].delay { consumer.kafkaConsumer.assignment().fromKafkaSdk }
-
-  /**
     * A pipe that applies the kafka offset commit settings policy from the config
     */
-  def applyCommitPolicy[F[_] : Effect, K, V](consumerVar : MVar[F, KafkaConsumer[Array[Byte], Array[Byte]]])(config : KafkaConsumerConfig[K, V])(implicit ex : ExecutionContext) : Pipe[F, ConsumerRecord[Array[Byte], Array[Byte]], ConsumerRecord[Array[Byte], Array[Byte]]] =
+  def applyCommitPolicy[F[_] : ConcurrentEffect, K, V](consumerVar : MVar[F, KafkaConsumerSubscription[Array[Byte], Array[Byte]]])(config : KafkaConsumerConfig[K, V])(implicit ex : ExecutionContext) : Pipe[F, ConsumerRecord[Array[Byte], Array[Byte]], ConsumerRecord[Array[Byte], Array[Byte]]] =
     stream =>
       config.commitOffsetSettings match {
         case KafkaOffsetCommitSettings.AutoCommit(timeBetweenCommits) =>
@@ -139,19 +83,26 @@ object KafkaConsumer {
         case _ => stream
       }
 
-
   /**
     * Creates a streaming subscription using the supplied kafka configuration
     */
-  def apply[F[_] : ConcurrentEffect, K, V](config : KafkaConsumerConfig[K, V])(implicit ex : ExecutionContext): Stream[F, Either[Throwable, ConsumerRecord[K, V]]] =
-    Stream.bracket(subscribeToConsumer(config))(consumer => {
+  def apply[F[_] : ConcurrentEffect, K, V](config : KafkaConsumerConfig[K, V])(implicit ex : ExecutionContext): Stream[F, Either[Throwable, ConsumerRecord[K, V]]] = {
+    val byteConfig = config.copy(keyDeserializer = new ByteArrayDeserializer(), valueDeserializer = new ByteArrayDeserializer())
+
+    def subscribe = for {
+      consumer <- KafkaConsumerSubscription(byteConfig)
+      result <- MVar.of(consumer)
+    } yield result
+
+    Stream.bracket(subscribe)(lockedConsumer => {
       val stream =
         for {
-          records <- Stream.repeatEval(pollKafka(consumer)(config.pollTimeout)).scope
+          records <- Stream.repeatEval(lockedConsumer.locked(consumer => ThinKafkaConsumerClient[F].poll(config.pollTimeout)(consumer))).scope
           process <- Stream.chunk(Chunk.vector(records)).covary[F]
         } yield process
       stream
-        .through(applyCommitPolicy(consumer)(config))
+        .through(applyCommitPolicy(lockedConsumer)(config))
         .through(deserializer(config.keyDeserializer, config.valueDeserializer))
-    }, cleanupConsumer[F, Array[Byte], Array[Byte]])
+    }, lockedConsumer => lockedConsumer.take.flatMap(KafkaConsumerSubscription.cleanup(_)))
+  }
 }
