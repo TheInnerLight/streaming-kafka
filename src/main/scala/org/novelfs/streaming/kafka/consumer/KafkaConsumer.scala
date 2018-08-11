@@ -6,13 +6,11 @@ import fs2._
 import org.apache.kafka.clients.consumer.{Consumer => ApacheKafkaConsumer, KafkaConsumer => ConcreteApacheKafkaConsumer}
 import org.apache.kafka.common.serialization.{ByteArrayDeserializer, Deserializer}
 import org.novelfs.streaming.kafka._
-import org.novelfs.streaming.kafka.ops._
 import org.slf4j.LoggerFactory
 import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.FiniteDuration
-import cats.Functor
-import fs2.async.mutable.{Queue, Signal}
+import fs2.async.mutable.Semaphore
 import KafkaSdkConversions._
 
 final case class KafkaConsumer[K, V] private (kafkaConsumer : ApacheKafkaConsumer[K, V])
@@ -24,23 +22,14 @@ object KafkaConsumer {
   /**
     * An effect to commit supplied map of offset metadata for each topic/partition pair
     */
-  def commitOffsetMap[F[_] : Effect, K, V](consumer : KafkaConsumer[K, V])(offsetMap : Map[TopicPartition, OffsetMetadata])(errorSignal : Signal[F, Boolean])(implicit ec: ExecutionContext): F[Unit] =
-    async.fork {
-      Async[F].async { (cb: Either[Throwable, Unit] => Unit) =>
-        consumer.kafkaConsumer.commitAsync(offsetMap.toKafkaSdk, (_: java.util.Map[org.apache.kafka.common.TopicPartition, org.apache.kafka.clients.consumer.OffsetAndMetadata], exception: Exception) => Option(exception) match {
-          case None =>
-            log.debug(s"Offset committed: $offsetMap")
-            cb(Right(()))
-          case Some(ex) =>
-            async.unsafeRunAsync(errorSignal.set(true)){
-              case Right(_) => IO.unit
-              case Left(_) => IO.unit
-            }
-            log.error("Error committing offset", ex)
-            cb(Left(ex))
-        })
-      }
-    }
+  def commitOffsetMap[F[_] : Effect, K, V](consumer : KafkaConsumer[K, V])(offsetMap : Map[TopicPartition, OffsetMetadata])(errorSemaphore : Semaphore[F])(implicit ec: ExecutionContext): F[Unit] =
+    Sync[F].delay(consumer.kafkaConsumer.commitAsync(offsetMap.toKafkaSdk, (_: java.util.Map[org.apache.kafka.common.TopicPartition, org.apache.kafka.clients.consumer.OffsetAndMetadata], exception: Exception) => Option(exception) match {
+      case None =>
+        log.debug(s"Offset committed: $offsetMap")
+      case Some(ex) =>
+        async.unsafeRunAsync(errorSemaphore.decrement)(_ => IO.unit)
+        log.error("Error committing offset", ex)
+    }))
 
   /**
     * A pipe that accumulates the offset metadata for each topic/partition pair for the supplied input stream of Consumer Records
@@ -49,24 +38,24 @@ object KafkaConsumer {
     _.zipWithScan1(Map.empty[TopicPartition, OffsetMetadata])((map, record) => map + (record.topicPartition -> OffsetMetadata(record.offset)))
 
   /**
-    * A convenience pipe that accumulates offset metadata and publishes them to the supplied queue
+    * A convenience pipe that accumulates offset metadata and publishes them to kafka asynchronously
     */
-  def publishOffsetsToQueue[F[_] : Functor, K, V](queue : Queue[F, Map[TopicPartition, OffsetMetadata]]): Sink[F, ConsumerRecord[K,V]] =
-    _.through(accumulateOffsetMetadata)
-      .map{case (_,offsetMap) => offsetMap}
-      .to(queue.enqueue)
-
-  /**
-    * A stream that commits the offsets in the supplied queue to kafka, using the supplied kafka consumer every supplied timeBetweenCommits
-    */
-  def commitOffsetsFromQueueEvery[F[_] : Effect, K, V](timeBetweenCommits : FiniteDuration)(consumer : KafkaConsumer[K, V])(queue : Queue[F, Map[TopicPartition, OffsetMetadata]])(implicit ec : ExecutionContext): Stream[F, Unit] =
+  def publishOffsets[F[_] : Effect, K, V](consumer : KafkaConsumer[K, V])(implicit ec: ExecutionContext): Pipe[F, ConsumerRecord[K, V], ConsumerRecord[K, V]] = s =>
     for {
-      errorSignal <- Stream.eval(async.signalOf[F, Boolean](false))
-      xs <- queue.dequeue
-        .takeElementsEvery(timeBetweenCommits)
-        .evalMap { offsetMap => commitOffsetMap(consumer)(offsetMap)(errorSignal) }
-        .interruptWhen(errorSignal)
-    } yield xs
+      errorSemaphore <- Stream.eval(async.semaphore[F](10))
+      stream <- s.through(accumulateOffsetMetadata)
+        .observe1 {_ =>
+            for {
+              count <- errorSemaphore.available
+              _ <- if (count <= 0) Sync[F].raiseError[Unit](new IllegalStateException("Too many kafka async commit attempts failed.")) else Sync[F].unit
+            } yield ()
+        }
+        .observe1 { case (_, offsetMap) =>
+          Sync[F].delay(log.debug(s"Offset commit requested: $offsetMap"))*>
+            commitOffsetMap(consumer)(offsetMap)(errorSemaphore)
+        }
+        .map{case (value, _) => value}
+    } yield stream
 
   /**
     * An effect that generates a subscription to some Kafka topics/paritions using the supplied kafka config
@@ -105,7 +94,17 @@ object KafkaConsumer {
     * An effect to return the set of topic and partition assignments attached to the supplied consumer
     */
   def topicPartitionAssignments[F[_] : Sync, K, V](consumer : KafkaConsumer[K, V]): F[Set[TopicPartition]] =
-    Sync[F].delay { consumer.kafkaConsumer.assignment().fromKafkaSdk }
+    Sync[F].delay(consumer.kafkaConsumer.assignment().fromKafkaSdk)
+
+
+  /**
+    * A pipe that applies the kafka offset commit settings policy from the config
+    */
+  def applyCommitPolicy[F[_] : Effect, K, V](consumer : KafkaConsumer[Array[Byte], Array[Byte]])(config : KafkaConsumerConfig[K, V])(implicit ex : ExecutionContext) : Pipe[F, ConsumerRecord[Array[Byte], Array[Byte]], ConsumerRecord[Array[Byte], Array[Byte]]] =
+    stream => config.commitOffsetSettings match {
+        case KafkaOffsetCommitSettings.AutoCommit => stream.through(publishOffsets(consumer))
+        case _                                    => stream
+      }
 
   /**
     * Creates a streaming subscription using the supplied kafka configuration
@@ -116,18 +115,7 @@ object KafkaConsumer {
         records <- Stream.repeatEval(pollKafka(consumer)(config.pollTimeout)).filter(_.nonEmpty)
         process <- Stream.chunk(Chunk.vector(records))
           .covary[F]
-          .observe(s =>
-            config.commitOffsetSettings match {
-              case KafkaOffsetCommitSettings.AutoCommit(timeBetweenCommits, maxAsyncCommits) =>
-                for {
-                  queue <- Stream.eval(Queue.bounded[F, Map[TopicPartition, OffsetMetadata]](maxAsyncCommits))
-                  y <- s.to(publishOffsetsToQueue(queue))
-                    .concurrently(commitOffsetsFromQueueEvery(timeBetweenCommits)(consumer)(queue))
-
-                } yield y
-              case _ => s.drain
-            }
-          )
+          .through(applyCommitPolicy(consumer)(config))
           .through(deserializer(config.keyDeserializer, config.valueDeserializer))
       } yield process, cleanupConsumer[F, Array[Byte], Array[Byte]])
 }
