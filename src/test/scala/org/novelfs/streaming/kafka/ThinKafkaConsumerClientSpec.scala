@@ -46,7 +46,7 @@ class ThinKafkaConsumerClientSpec extends FlatSpec with Matchers with MockFactor
 
       val result = ThinKafkaConsumerClient[IO].commitOffsetMap(offsetMap)(kafkaSubscription).attempt.unsafeRunSync()
 
-      result.isRight shouldBe true
+      result.isRight shouldBe false
     }
   }
 
