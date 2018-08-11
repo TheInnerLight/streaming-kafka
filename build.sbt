@@ -1,7 +1,7 @@
 import ReleaseTransformations._
 
 name := "streaming-kafka"
-scalaVersion := "2.12.4"
+scalaVersion := "2.12.6"
 organization := "org.novelfs"
 
 val catsEffectVersion = "1.0.0-RC2"
@@ -97,7 +97,7 @@ scmInfo := Some(
 )
 
 releaseCrossBuild := true
-crossScalaVersions := Seq("2.11.12", "2.12.4")
+crossScalaVersions := Seq("2.11.12", "2.12.6")
 
 useGpg := false
 pgpSecretRing := file("local.secring.gpg")
