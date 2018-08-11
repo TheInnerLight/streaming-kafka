@@ -59,7 +59,7 @@ trait DomainArbitraries {
     } yield ProducerRecord(topic, None, key, value))
 
   implicit val stringProducerRecordsArb : Arbitrary[List[ProducerRecord[String, String]]] =
-    Arbitrary(Gen.listOfN(100, stringProducerRecordArb.arbitrary))
+    Arbitrary(Gen.listOfN(500, stringProducerRecordArb.arbitrary))
 
   implicit val kafkaEncryptionSettingsArb: Arbitrary[KafkaEncryptionSettings] =
     Arbitrary(for {
