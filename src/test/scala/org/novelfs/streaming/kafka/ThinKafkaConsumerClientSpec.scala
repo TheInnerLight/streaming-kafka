@@ -22,7 +22,7 @@ class ThinKafkaConsumerClientSpec extends FlatSpec with Matchers with MockFactor
       (rawKafkaConsumer.poll _) expects(d.toMillis) returns
         (new ApacheConsumerRecords[String,String](Map.empty[org.apache.kafka.common.TopicPartition, java.util.List[ApacheConsumerRecord[String, String]]].asJava)) once()
 
-      ThinKafkaConsumerClient[IO].poll(d)(kafkaSubscription)
+      ThinKafkaConsumerClient[IO].poll(d)(kafkaSubscription).unsafeRunSync()
     }
   }
 
