@@ -48,7 +48,7 @@ class ThinKafkaConsumerClientSpec extends FlatSpec with Matchers with MockFactor
     }
   }
 
-  "zube" should "zuuube" in new ThinKafkaConsumerClientSpecContext {
+  "topicPartitionAssignments" should "call consumer.assignment" in new ThinKafkaConsumerClientSpecContext {
     ((rawKafkaConsumer.assignment _) : () => java.util.Set[org.apache.kafka.common.TopicPartition]).expects().returns(new java.util.HashSet[org.apache.kafka.common.TopicPartition]())
 
     ThinKafkaConsumerClient[IO].topicPartitionAssignments(kafkaSubscription).unsafeRunSync()

@@ -21,13 +21,6 @@ class KafkaConsumerSpec extends FlatSpec with Matchers with MockFactory with Gen
     val kafkaConsumer = MVar.of[IO, KafkaConsumer[String, String]](KafkaConsumer(rawKafkaConsumer)).unsafeRunSync()
   }
 
-  "cleanupConsumer" should "call consumer.wakeup() and consumer.close()" in new KafkaConsumerSpecContext {
-    (rawKafkaConsumer.wakeup _ : () => Unit) expects() once()
-    (rawKafkaConsumer.close _ : () => Unit) expects() once()
-
-    KafkaConsumerSubscription.cleanup[IO, String, String](kafkaSubscription).unsafeRunSync()
-  }
-
   "accumulate offset metadata" should "return the largest offsets for each topic/partition" in new KafkaConsumerSpecContext {
     forAll { consumerRecords: List[consumer.ConsumerRecord[String, String]] =>
       val finalMap: Map[TopicPartition, OffsetMetadata] = Stream.emits(consumerRecords)
