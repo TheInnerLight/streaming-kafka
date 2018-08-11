@@ -8,7 +8,6 @@ import org.apache.kafka.clients.consumer.{Consumer => ApacheKafkaConsumer}
 import org.scalatest.prop.GeneratorDrivenPropertyChecks
 import fs2._
 import org.apache.kafka.common.serialization.Deserializer
-import cats.effect.concurrent.MVar
 import org.novelfs.streaming.kafka.consumer.{KafkaConsumer, KafkaConsumerSubscription, OffsetMetadata}
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -18,7 +17,6 @@ class KafkaConsumerSpec extends FlatSpec with Matchers with MockFactory with Gen
   trait KafkaConsumerSpecContext {
     val rawKafkaConsumer = mock[ApacheKafkaConsumer[String, String]]
     val kafkaSubscription = KafkaConsumerSubscription(rawKafkaConsumer)
-    val kafkaConsumer = MVar.of[IO, KafkaConsumer[String, String]](KafkaConsumer(rawKafkaConsumer)).unsafeRunSync()
   }
 
   "accumulate offset metadata" should "return the largest offsets for each topic/partition" in new KafkaConsumerSpecContext {

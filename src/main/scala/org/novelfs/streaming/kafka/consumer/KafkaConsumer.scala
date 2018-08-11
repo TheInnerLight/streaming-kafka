@@ -3,7 +3,6 @@ package org.novelfs.streaming.kafka.consumer
 import cats.effect._
 import cats.implicits._
 import fs2._
-import org.apache.kafka.clients.consumer.{Consumer => ApacheKafkaConsumer}
 import org.apache.kafka.common.serialization.{ByteArrayDeserializer, Deserializer}
 import org.novelfs.streaming.kafka._
 import org.slf4j.LoggerFactory
@@ -14,8 +13,6 @@ import cats.Functor
 import fs2.async.mutable.{Queue, Signal}
 import cats.effect.concurrent.MVar
 import org.novelfs.streaming.kafka.interpreter.ThinKafkaConsumerClient
-
-final case class KafkaConsumer[K, V] private (kafkaConsumer : ApacheKafkaConsumer[K, V])
 
 object KafkaConsumer {
 
