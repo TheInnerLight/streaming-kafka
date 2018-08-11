@@ -4,73 +4,30 @@ import cats.implicits._
 import cats.effect._
 import org.scalamock.scalatest.MockFactory
 import org.scalatest.{FlatSpec, Matchers}
-import org.apache.kafka.clients.consumer.{ConsumerRecord => ApacheConsumerRecord, ConsumerRecords => ApacheConsumerRecords, OffsetCommitCallback, Consumer => ApacheKafkaConsumer}
+import org.apache.kafka.clients.consumer.{Consumer => ApacheKafkaConsumer}
 import org.scalatest.prop.GeneratorDrivenPropertyChecks
-
-import scala.concurrent.duration._
-import collection.JavaConverters._
 import fs2._
 import org.apache.kafka.common.serialization.Deserializer
-import KafkaSdkConversions._
-import org.novelfs.streaming.kafka.consumer.{KafkaConsumer, OffsetMetadata}
+import org.novelfs.streaming.kafka.consumer.{KafkaConsumer, KafkaConsumerSubscription, OffsetMetadata}
+
 import scala.concurrent.ExecutionContext.Implicits.global
 
 class KafkaConsumerSpec extends FlatSpec with Matchers with MockFactory with GeneratorDrivenPropertyChecks with DomainArbitraries {
 
-  val rawKafkaConsumer = mock[ApacheKafkaConsumer[String, String]]
-  val kafkaConsumer = KafkaConsumer(rawKafkaConsumer)
-
-  "cleanupConsumer" should "call consumer.wakeup() and consumer.close()" in {
-    (rawKafkaConsumer.wakeup _ : () => Unit) expects() once()
-    (rawKafkaConsumer.close _ : () => Unit) expects() once()
-    KafkaConsumer.cleanupConsumer[IO, String, String](kafkaConsumer).unsafeRunSync()
+  trait KafkaConsumerSpecContext {
+    val rawKafkaConsumer = mock[ApacheKafkaConsumer[String, String]]
+    val kafkaSubscription = KafkaConsumerSubscription(rawKafkaConsumer)
   }
 
-  "poll" should "call consumer.poll with supplied duration" in {
-    forAll { (d: FiniteDuration) =>
-      (rawKafkaConsumer.poll _) expects(d.toMillis) returns
-        (new ApacheConsumerRecords[String,String](Map.empty[org.apache.kafka.common.TopicPartition, java.util.List[ApacheConsumerRecord[String, String]]].asJava)) once()
-      KafkaConsumer.pollKafka[IO, String, String](kafkaConsumer)(d).unsafeRunSync()
-    }
-  }
-
-  "commit offset map" should "call consumer.commitAsync with the supplied OffsetMap" in {
-    forAll { (offsetMap : Map[TopicPartition, OffsetMetadata]) =>
-      val javaMap = offsetMap.toKafkaSdk
-
-      (rawKafkaConsumer.commitAsync(_ : java.util.Map[org.apache.kafka.common.TopicPartition,  org.apache.kafka.clients.consumer.OffsetAndMetadata], _ : OffsetCommitCallback))
-        .expects (javaMap, *) onCall { (_, callback) => callback.onComplete(javaMap, null) } once()
-
-      val errorSemaphore = async.semaphore[IO](10).unsafeRunSync()
-
-      (KafkaConsumer.commitOffsetMap[IO, String, String](kafkaConsumer)(offsetMap)(errorSemaphore) *> IO{Thread.sleep(500)}).unsafeRunSync()
-    }
-  }
-
-  "commit offset map" should "decrement the semaphore if an error was received from the callback" in {
-    forAll { (offsetMap : Map[TopicPartition, OffsetMetadata]) =>
-      val javaMap = offsetMap.toKafkaSdk
-
-      (rawKafkaConsumer.commitAsync(_ : java.util.Map[org.apache.kafka.common.TopicPartition,  org.apache.kafka.clients.consumer.OffsetAndMetadata], _ : OffsetCommitCallback))
-        .expects (javaMap, *) onCall { (_, callback) => callback.onComplete(javaMap, new Exception("Red alert!")) } once()
-
-      val errorSemaphore = async.semaphore[IO](10).unsafeRunSync()
-
-      KafkaConsumer.commitOffsetMap[IO, String, String](kafkaConsumer)(offsetMap)(errorSemaphore).unsafeRunSync()
-
-      Thread.sleep(1000)
-
-      val semaphore = errorSemaphore.available.unsafeRunSync()
-      semaphore shouldBe 9
-    }
-  }
-
-  "accumulate offset metadata" should "return the largest offsets for each topic/partition" in {
+  "accumulate offset metadata" should "return the largest offsets for each topic/partition" in new KafkaConsumerSpecContext {
     forAll { consumerRecords: List[consumer.ConsumerRecord[String, String]] =>
       val finalMap: Map[TopicPartition, OffsetMetadata] = Stream.emits(consumerRecords)
+          .covary[IO]
           .through(KafkaConsumer.accumulateOffsetMetadata)
           .map{case (_, offsets) => offsets}
+          .compile
           .toVector
+          .unsafeRunSync()
           .last
 
       val expectedMap: Map[TopicPartition, OffsetMetadata] =
@@ -81,7 +38,7 @@ class KafkaConsumerSpec extends FlatSpec with Matchers with MockFactory with Gen
     }
   }
 
-  "deserializer" should "call deserialize on the key and value deserializers with the supplied stream values" in {
+  "deserializer" should "call deserialize on the key and value deserializers with the supplied stream values" in new KafkaConsumerSpecContext {
     forAll { consumerRecords: List[consumer.ConsumerRecord[Array[Byte], Array[Byte]]] =>
       val intDeserializer = mock[Deserializer[Array[Int]]]
 

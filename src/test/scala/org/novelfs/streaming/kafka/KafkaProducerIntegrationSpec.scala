@@ -46,6 +46,7 @@ class KafkaProducerIntegrationSpec extends FlatSpec with Matchers with Generator
 
         val consumerStream = KafkaConsumer[IO, String, String](consumerConfig)
         val producerStream = Stream.emits(topicCorrectProducerRecords)
+          .repeat
           .covary[IO]
           .through(KafkaProducer(producerConfig))
 
