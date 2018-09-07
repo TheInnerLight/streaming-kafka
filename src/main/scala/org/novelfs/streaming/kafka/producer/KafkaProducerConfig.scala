@@ -6,7 +6,7 @@ import org.apache.kafka.clients.producer.ProducerConfig
 import org.apache.kafka.common.serialization.Serializer
 import org.novelfs.streaming.kafka.KafkaSecuritySettings
 
-case class KafkaProducerConfig[K, V] private (
+case class KafkaProducerConfig[K, V](
     brokers              : List[String],
     security             : KafkaSecuritySettings,
     keySerializer        : Serializer[K],
@@ -14,18 +14,6 @@ case class KafkaProducerConfig[K, V] private (
     )
 
 object KafkaProducerConfig {
-  def apply[K, V](
-               brokers              : List[String],
-               security             : KafkaSecuritySettings,
-               keySerializer        : Serializer[K],
-               valueSerializer      : Serializer[V]) : KafkaProducerConfig[K, V] =
-    new KafkaProducerConfig(
-      brokers = brokers,
-      security = security,
-      keySerializer = keySerializer,
-      valueSerializer = valueSerializer
-    )
-
   def generateProperties[K, V](kafkaProducerConfig: KafkaProducerConfig[K, V]): Properties = {
     val props: Properties = new Properties()
     props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaProducerConfig.brokers.mkString(","))
