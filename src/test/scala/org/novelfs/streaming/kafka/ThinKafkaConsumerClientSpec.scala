@@ -42,7 +42,7 @@ class ThinKafkaConsumerClientSpec extends FlatSpec with Matchers with MockFactor
       val javaMap = offsetMap.toKafkaSdk
 
       (rawKafkaConsumer.commitSync(_ : java.util.Map[org.apache.kafka.common.TopicPartition,  org.apache.kafka.clients.consumer.OffsetAndMetadata]))
-        .expects (javaMap) onCall { _ => throw new RuntimeException("Argh") } once()
+        .expects (javaMap) onCall { (_ : java.util.Map[org.apache.kafka.common.TopicPartition,  org.apache.kafka.clients.consumer.OffsetAndMetadata]) => throw new RuntimeException("Argh") } once()
 
       val result = ThinKafkaConsumerClient[IO].commitOffsetMap(offsetMap)(kafkaSubscription).attempt.unsafeRunSync()
 
