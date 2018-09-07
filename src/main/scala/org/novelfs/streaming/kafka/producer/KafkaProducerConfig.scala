@@ -6,7 +6,7 @@ import org.apache.kafka.clients.producer.ProducerConfig
 import org.apache.kafka.common.serialization.Serializer
 import org.novelfs.streaming.kafka.KafkaSecuritySettings
 
-case class KafkaProducerConfig[K, V](
+case class KafkaProducerConfig[K, V] private (
     brokers              : List[String],
     security             : KafkaSecuritySettings,
     keySerializer        : Serializer[K],
