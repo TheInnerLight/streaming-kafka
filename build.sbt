@@ -62,7 +62,6 @@ scalacOptions ++= Seq(
   "-Ywarn-nullary-override",           // Warn when non-nullary `def f()' overrides nullary `def f'.
   "-Ywarn-nullary-unit",               // Warn when nullary methods return Unit.
   "-Ywarn-numeric-widen",              // Warn when numerics are widened.
-  "-Ywarn-unused:locals",              // Warn if a local definition is unused.
   "-Ywarn-unused:params",              // Warn if a value parameter is unused.
   "-Ywarn-unused:patvars",             // Warn if a variable bound in a pattern is unused.
   "-Ywarn-unused:privates",            // Warn if a private member is unused.
