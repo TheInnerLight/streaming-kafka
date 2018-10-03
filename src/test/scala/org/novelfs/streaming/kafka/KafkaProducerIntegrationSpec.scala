@@ -20,6 +20,9 @@ class KafkaProducerIntegrationSpec extends FlatSpec with Matchers with Generator
   val stringSerialiser = new StringSerializer()
   val stringDeserialiser = new StringDeserializer()
 
+  implicit val contextShift = IO.contextShift(global)
+  implicit val timer = IO.timer(global)
+
   "Concurrently producing and consuming records to/from a topic" should "result in all produced records being made available to the consumer" taggedAs (Slow) in {
     withRunningKafka {
       forAll { (producerRecords: List[ProducerRecord[String, String]]) =>

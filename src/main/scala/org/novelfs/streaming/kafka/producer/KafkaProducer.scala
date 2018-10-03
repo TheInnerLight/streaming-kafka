@@ -6,6 +6,7 @@ import fs2._
 import org.apache.kafka.clients.producer.{KafkaProducer => ConcreteApacheKafkaProducer, Producer => ApacheKafkaProducer}
 import org.apache.kafka.common.serialization.{ByteArraySerializer, Serializer}
 import org.novelfs.streaming.kafka.KafkaSdkConversions
+import org.novelfs.streaming.kafka.producer.KafkaProducer.cleanupProducer
 //import org.slf4j.LoggerFactory
 import KafkaSdkConversions._
 
@@ -55,14 +56,15 @@ object KafkaProducer {
     * Creates a Pipe that can be used to submit a stream of producer records to Kafka
     */
   def apply[F[_] : Async, K, V](producerConfig : KafkaProducerConfig[K, V]) : Pipe[F, ProducerRecord[K, V], Either[Throwable, Unit]] = s =>
-    Stream.bracket(createProducer(producerConfig))(producer => {
-      s.through(serializer(producerConfig.keySerializer, producerConfig.valueSerializer))
-        .observe1 {
-          case Right(r) => sendRecord(r)(producer)
-          case Left(_)  => Async[F].unit
-        }
-        .map(_.map(_ => ()))
-    }, cleanupProducer[F, Array[Byte], Array[Byte]])
+    Stream.bracket(createProducer(producerConfig))(cleanupProducer[F, Array[Byte], Array[Byte]])
+      .flatMap(producer => {
+        s.through(serializer(producerConfig.keySerializer, producerConfig.valueSerializer))
+          .evalTap {
+            case Right(r) => sendRecord(r)(producer)
+            case Left(_)  => Async[F].unit
+          }
+          .map(_.map(_ => ()))
+      })
 
 
 }

@@ -7,10 +7,11 @@ import org.apache.kafka.common.serialization.{ByteArrayDeserializer, Deserialize
 import org.novelfs.streaming.kafka._
 import org.slf4j.LoggerFactory
 import org.novelfs.streaming.kafka.utils._
+
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.FiniteDuration
 import cats.Functor
-import fs2.async.mutable.{Queue, Signal}
+import fs2.concurrent.{Queue, Signal, SignallingRef}
 import cats.effect.concurrent.MVar
 import org.novelfs.streaming.kafka.interpreter.ThinKafkaConsumerClient
 
@@ -29,18 +30,18 @@ object KafkaConsumer {
     */
   def publishOffsetsToQueue[F[_] : Functor, K, V](queue : Queue[F, Map[TopicPartition, OffsetMetadata]]): Pipe[F, ConsumerRecord[K, V], ConsumerRecord[K, V]] =
     _.through(accumulateOffsetMetadata)
-      .observe1{case (_, offsetMap) => queue.enqueue1(offsetMap)}
+      .evalTap{case (_, offsetMap) => queue.enqueue1(offsetMap)}
       .map{case (value, _) => value}
 
   /**
     * A stream that commits the offsets in the supplied queue to kafka, using the supplied kafka consumer every supplied timeBetweenCommits
     */
-  def commitOffsetsFromQueueEvery[F[_] : ConcurrentEffect, K, V](timeBetweenCommits : FiniteDuration)(lockedConsumer : MVar[F, KafkaConsumerSubscription[K, V]])(errorSignal : Signal[F, Boolean])(queue : Queue[F, Map[TopicPartition, OffsetMetadata]])(implicit ec : ExecutionContext): Stream[F, Unit] =
+  def commitOffsetsFromQueueEvery[F[_] : ConcurrentEffect : Timer, K, V](timeBetweenCommits : FiniteDuration)(lockedConsumer : MVar[F, KafkaConsumerSubscription[K, V]])(errorSignal : SignallingRef[F, Boolean])(queue : Queue[F, Map[TopicPartition, OffsetMetadata]])(implicit ec : ExecutionContext): Stream[F, Unit] =
     for {
-      obs <- async.hold(Map.empty[TopicPartition, OffsetMetadata], queue.dequeue)
-      scheduler <- Scheduler[F](corePoolSize = 2)
-      xs <- scheduler
-        .fixedRate(timeBetweenCommits).evalMap(_ => obs.get)
+      obs <- queue.dequeue.hold(Map.empty[TopicPartition, OffsetMetadata])
+      xs <- Stream
+        .fixedRate(timeBetweenCommits)
+        .evalMap(_ => obs.get)
         .evalMap { offsetMap =>
           lockedConsumer
             .locked(consumer => ThinKafkaConsumerClient[F].commitOffsetMap(offsetMap)(consumer))
@@ -66,13 +67,13 @@ object KafkaConsumer {
   /**
     * A pipe that applies the kafka offset commit settings policy from the config
     */
-  def applyCommitPolicy[F[_] : ConcurrentEffect, K, V](consumerVar : MVar[F, KafkaConsumerSubscription[Array[Byte], Array[Byte]]])(config : KafkaConsumerConfig[K, V])(implicit ex : ExecutionContext) : Pipe[F, ConsumerRecord[Array[Byte], Array[Byte]], ConsumerRecord[Array[Byte], Array[Byte]]] =
+  def applyCommitPolicy[F[_] : ConcurrentEffect : Timer, K, V](consumerVar : MVar[F, KafkaConsumerSubscription[Array[Byte], Array[Byte]]])(config : KafkaConsumerConfig[K, V])(implicit ex : ExecutionContext) : Pipe[F, ConsumerRecord[Array[Byte], Array[Byte]], ConsumerRecord[Array[Byte], Array[Byte]]] =
     stream =>
       config.commitOffsetSettings match {
         case KafkaOffsetCommitSettings.AutoCommit(timeBetweenCommits) =>
           for {
             queue <- Stream.eval(Queue.unbounded[F, Map[TopicPartition, OffsetMetadata]])
-            errorSignal <- Stream.eval(async.signalOf[F, Boolean](false))
+            errorSignal <- Stream.eval(SignallingRef[F, Boolean](false))
             y <- stream.through(publishOffsetsToQueue(queue))
               .interruptWhen(errorSignal)
               .concurrently(commitOffsetsFromQueueEvery(timeBetweenCommits)(consumerVar)(errorSignal)(queue))
@@ -83,7 +84,7 @@ object KafkaConsumer {
   /**
     * Creates a streaming subscription using the supplied kafka configuration
     */
-  def apply[F[_] : ConcurrentEffect, K, V](config : KafkaConsumerConfig[K, V])(implicit ex : ExecutionContext): Stream[F, Either[Throwable, ConsumerRecord[K, V]]] = {
+  def apply[F[_] : ConcurrentEffect : Timer, K, V](config : KafkaConsumerConfig[K, V])(implicit ex : ExecutionContext): Stream[F, Either[Throwable, ConsumerRecord[K, V]]] = {
     val byteConfig = config.copy(keyDeserializer = new ByteArrayDeserializer(), valueDeserializer = new ByteArrayDeserializer())
 
     def subscribe = for {
@@ -91,15 +92,15 @@ object KafkaConsumer {
       result <- MVar.of(consumer)
     } yield result
 
-    Stream.bracket(subscribe)(lockedConsumer => {
-      val stream =
-        for {
+    Stream
+      .bracket(subscribe)(lockedConsumer => lockedConsumer.take.flatMap(KafkaConsumerSubscription.cleanup(_)))
+      .flatMap(lockedConsumer =>
+        (for {
           records <- Stream.repeatEval(lockedConsumer.locked(consumer => ThinKafkaConsumerClient[F].poll(config.pollTimeout)(consumer))).scope
           process <- Stream.chunk(Chunk.vector(records)).covary[F]
-        } yield process
-      stream
-        .through(applyCommitPolicy(lockedConsumer)(config))
-        .through(deserializer(config.keyDeserializer, config.valueDeserializer))
-    }, lockedConsumer => lockedConsumer.take.flatMap(KafkaConsumerSubscription.cleanup(_)))
+        } yield process)
+          .through(applyCommitPolicy(lockedConsumer)(config))
+          .through(deserializer(config.keyDeserializer, config.valueDeserializer))
+      )
   }
 }

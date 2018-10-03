@@ -1,13 +1,14 @@
 import ReleaseTransformations._
 
 name := "streaming-kafka"
-scalaVersion := "2.12.6"
+scalaVersion := "2.12.7"
 organization := "org.novelfs"
 
-val catsEffectVersion = "1.0.0-RC2"
+val catsEffectVersion = "1.0.0"
 val kafkaSerializationV = "0.3.2"
 val scalatestVersion = "3.0.4"
 val typesafeConfigVersion = "1.3.1"
+val fs2Version = "1.0.0-RC2"
 
 libraryDependencies ++= Seq(
   "ch.qos.logback" % "logback-classic" % "1.2.3" % Test
@@ -18,8 +19,8 @@ libraryDependencies ++= Seq(
   , "org.scalacheck" %% "scalacheck" % "1.13.4" % Test
   , "org.typelevel" %% "cats-effect" % catsEffectVersion
   , "org.apache.kafka" %% "kafka" % "1.0.0"
-  , "co.fs2" %% "fs2-core" % "0.10.5"
-  , "co.fs2" %% "fs2-io" % "0.10.5"
+  , "co.fs2" %% "fs2-core" % fs2Version
+  , "co.fs2" %% "fs2-io" % fs2Version
   , "net.manub" %% "scalatest-embedded-kafka" % "1.1.0" % Test
 )
 
