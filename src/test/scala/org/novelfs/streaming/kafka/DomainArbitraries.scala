@@ -72,7 +72,8 @@ trait DomainArbitraries {
       location <- Gen.alphaStr
       storePassword <- Gen.alphaStr
       password <- Gen.option(Gen.alphaStr)
-    } yield (KafkaAuthenticationSettings(location, storePassword, password)))
+      keystoreType <- Gen.option(Gen.oneOf(List("PKCS12", "JKS")))
+    } yield (KafkaAuthenticationSettings(location, storePassword, password, keystoreType)))
 
   implicit val kafkaKafkaSecuritySettingsArb: Arbitrary[KafkaSecuritySettings] =
     Arbitrary(for {

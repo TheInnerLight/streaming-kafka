@@ -26,6 +26,7 @@ class KafkaConsumerConfigSpec extends FlatSpec with Matchers with MockFactory wi
           KafkaConsumerConfig.generateProperties(config).getProperty(SslConfigs.SSL_KEYSTORE_LOCATION_CONFIG) shouldBe authSettings.keyStoreLocation
           KafkaConsumerConfig.generateProperties(config).getProperty(SslConfigs.SSL_KEYSTORE_PASSWORD_CONFIG) shouldBe authSettings.keyStorePassword
           Option(KafkaConsumerConfig.generateProperties(config).getProperty(SslConfigs.SSL_KEY_PASSWORD_CONFIG)) shouldBe authSettings.keyPassword
+          Option(KafkaConsumerConfig.generateProperties(config).getProperty(SslConfigs.SSL_KEYSTORE_TYPE_CONFIG)) shouldBe authSettings.keystoreType
         case KafkaSecuritySettings.EncryptedAndAuthenticated(encryptionSettings, authSettings) =>
           KafkaConsumerConfig.generateProperties(config).getProperty(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG) shouldBe "SSL"
           KafkaConsumerConfig.generateProperties(config).getProperty(SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG) shouldBe encryptionSettings.trustStoreLocation
@@ -33,6 +34,7 @@ class KafkaConsumerConfigSpec extends FlatSpec with Matchers with MockFactory wi
           KafkaConsumerConfig.generateProperties(config).getProperty(SslConfigs.SSL_KEYSTORE_LOCATION_CONFIG) shouldBe authSettings.keyStoreLocation
           KafkaConsumerConfig.generateProperties(config).getProperty(SslConfigs.SSL_KEYSTORE_PASSWORD_CONFIG) shouldBe authSettings.keyStorePassword
           Option(KafkaConsumerConfig.generateProperties(config).getProperty(SslConfigs.SSL_KEY_PASSWORD_CONFIG)) shouldBe authSettings.keyPassword
+          Option(KafkaConsumerConfig.generateProperties(config).getProperty(SslConfigs.SSL_KEYSTORE_TYPE_CONFIG)) shouldBe authSettings.keystoreType
       }
     }
   }

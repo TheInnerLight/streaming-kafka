@@ -16,7 +16,7 @@ case class KafkaEncryptionSettings(trustStoreLocation : String, trustStorePasswo
   * @param keyStorePassword The store password for the key store file
   * @param keyPassword The password of the private key in the key store file
   */
-case class KafkaAuthenticationSettings(keyStoreLocation : String, keyStorePassword : String, keyPassword : Option[String])
+case class KafkaAuthenticationSettings(keyStoreLocation : String, keyStorePassword : String, keyPassword : Option[String], keystoreType : Option[String])
 
 sealed trait KafkaSecuritySettings
 object KafkaSecuritySettings {
@@ -38,6 +38,10 @@ object KafkaSecuritySettings {
     authSettings.keyPassword match {
       case Some(password) => props.put(SslConfigs.SSL_KEY_PASSWORD_CONFIG, password)
       case _              => ()
+    }
+    authSettings.keystoreType match {
+      case Some(keystoreType) => props.put(SslConfigs.SSL_KEYSTORE_TYPE_CONFIG, keystoreType)
+      case _                  => ()
     }
     props
   }
