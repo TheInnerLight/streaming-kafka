@@ -74,9 +74,9 @@ object KafkaConsumer {
           for {
             queue <- Stream.eval(Queue.unbounded[F, Map[TopicPartition, OffsetMetadata]])
             errorSignal <- Stream.eval(SignallingRef[F, Boolean](false))
-            y <- stream.through(publishOffsetsToQueue(queue))
-              .interruptWhen(errorSignal)
-              .concurrently(commitOffsetsFromQueueEvery(timeBetweenCommits)(consumerVar)(errorSignal)(queue))
+            y <- stream
+              .through(publishOffsetsToQueue(queue))
+              .mergeHaltBoth(commitOffsetsFromQueueEvery(timeBetweenCommits)(consumerVar)(errorSignal)(queue).drain)
           } yield y
         case _ => stream
       }
