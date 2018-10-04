@@ -71,7 +71,7 @@ trait DomainArbitraries {
     Arbitrary(for {
       location <- Gen.alphaStr
       storePassword <- Gen.alphaStr
-      password <- Gen.alphaStr
+      password <- Gen.option(Gen.alphaStr)
     } yield (KafkaAuthenticationSettings(location, storePassword, password)))
 
   implicit val kafkaKafkaSecuritySettingsArb: Arbitrary[KafkaSecuritySettings] =
