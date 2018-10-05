@@ -36,7 +36,7 @@ object KafkaConsumer {
   /**
     * A stream that commits the offsets in the supplied queue to kafka, using the supplied kafka consumer every supplied timeBetweenCommits
     */
-  def commitOffsetsFromQueueEvery[F[_] : ConcurrentEffect : Timer, K, V](timeBetweenCommits : FiniteDuration)(lockedConsumer : MVar[F, KafkaConsumerSubscription[K, V]])(errorSignal : SignallingRef[F, Boolean])(queue : Queue[F, Map[TopicPartition, OffsetMetadata]])(implicit ec : ExecutionContext): Stream[F, Unit] =
+  def commitOffsetsFromQueueEvery[F[_] : ConcurrentEffect : Timer, K, V](timeBetweenCommits : FiniteDuration)(lockedConsumer : MVar[F, KafkaConsumerSubscription[K, V]])(queue : Queue[F, Map[TopicPartition, OffsetMetadata]])(implicit ec : ExecutionContext): Stream[F, Unit] =
     for {
       obs <- queue.dequeue.hold(Map.empty[TopicPartition, OffsetMetadata])
       xs <- Stream
@@ -45,9 +45,8 @@ object KafkaConsumer {
         .evalMap { offsetMap =>
           lockedConsumer
             .locked(consumer => ThinKafkaConsumerClient[F].commitOffsetMap(offsetMap)(consumer))
-            .handleErrorWith { case ex =>
-              log.error("Error during offset commit", ex)
-              errorSignal.set(true)
+            .onError { case ex =>
+              Sync[F].delay{ log.error("Error during offset commit", ex) }
             }
         }
     } yield xs
@@ -74,9 +73,9 @@ object KafkaConsumer {
           for {
             queue <- Stream.eval(Queue.unbounded[F, Map[TopicPartition, OffsetMetadata]])
             errorSignal <- Stream.eval(SignallingRef[F, Boolean](false))
-            y <- stream
-              .through(publishOffsetsToQueue(queue))
-              .mergeHaltBoth(commitOffsetsFromQueueEvery(timeBetweenCommits)(consumerVar)(errorSignal)(queue).drain)
+            mainStream = stream.through(publishOffsetsToQueue(queue))
+            commitStream = commitOffsetsFromQueueEvery(timeBetweenCommits)(consumerVar)(queue).drain
+            y <- Stream(mainStream, commitStream).parJoin(2)
           } yield y
         case _ => stream
       }
