@@ -31,7 +31,7 @@ object ThinKafkaConsumerClient {
       * An effect that polls kafka (once) with a supplied timeout
       */
     override def poll[K, V](pollTimeout: FiniteDuration)(context: KafkaConsumerSubscription[K, V]): F[Vector[ConsumerRecord[K, V]]] =
-      Sync[F].delay { context.kafkaConsumer.poll(pollTimeout.toMillis).fromKafkaSdk }
+      Sync[F].delay { context.kafkaConsumer.poll(java.time.Duration.ofMillis(pollTimeout.toMillis)).fromKafkaSdk }
 
     /**
       * An effect to return the set of topic and partition assignments attached to the supplied consumer

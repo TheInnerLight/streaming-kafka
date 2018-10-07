@@ -18,10 +18,10 @@ libraryDependencies ++= Seq(
   , "org.scalamock" %% "scalamock" % "4.1.0" % Test
   , "org.scalacheck" %% "scalacheck" % "1.13.4" % Test
   , "org.typelevel" %% "cats-effect" % catsEffectVersion
-  , "org.apache.kafka" %% "kafka" % "1.0.0"
+  , "org.apache.kafka" % "kafka-clients" % "2.0.0"
   , "co.fs2" %% "fs2-core" % fs2Version
   , "co.fs2" %% "fs2-io" % fs2Version
-  , "net.manub" %% "scalatest-embedded-kafka" % "1.1.0" % Test
+  , "net.manub" %% "scalatest-embedded-kafka" % "2.0.0" % Test
 )
 
 addCompilerPlugin("org.spire-math" %% "kind-projector" % "0.9.4")

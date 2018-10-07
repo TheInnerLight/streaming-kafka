@@ -9,7 +9,7 @@ import org.slf4j.LoggerFactory
 import org.novelfs.streaming.kafka.utils._
 
 import scala.concurrent.ExecutionContext
-import scala.concurrent.duration.FiniteDuration
+import scala.concurrent.duration._
 import cats.Functor
 import fs2.concurrent.{Queue, Signal, SignallingRef}
 import cats.effect.concurrent.MVar
@@ -85,21 +85,27 @@ object KafkaConsumer {
     */
   def apply[F[_] : ConcurrentEffect : Timer, K, V](config : KafkaConsumerConfig[K, V]): Stream[F, Either[Throwable, ConsumerRecord[K, V]]] = {
     val byteConfig = config.copy(keyDeserializer = new ByteArrayDeserializer(), valueDeserializer = new ByteArrayDeserializer())
+    val thinKafkaConsumerClient = ThinKafkaConsumerClient[F]
 
     def subscribe = for {
       consumer <- KafkaConsumerSubscription(byteConfig)
       result <- MVar.of(consumer)
     } yield result
 
+    def pollAndChunk(lockedConsumer : MVar[F, KafkaConsumerSubscription[Array[Byte], Array[Byte]]])(timeout : FiniteDuration): Stream[F, ConsumerRecord[Array[Byte], Array[Byte]]] =
+      for {
+        records <- Stream.repeatEval(lockedConsumer.locked(consumer => thinKafkaConsumerClient.poll(config.pollTimeout)(consumer))).scope
+        process <- Stream.chunk(Chunk.vector(records)).covary[F]
+      } yield process
+
     Stream
       .bracket(subscribe)(lockedConsumer => lockedConsumer.take.flatMap(KafkaConsumerSubscription.cleanup(_)))
       .flatMap(lockedConsumer =>
-        (for {
-          records <- Stream.repeatEval(lockedConsumer.locked(consumer => ThinKafkaConsumerClient[F].poll(config.pollTimeout)(consumer))).scope
-          process <- Stream.chunk(Chunk.vector(records)).covary[F]
-        } yield process)
+        pollAndChunk(lockedConsumer)(config.initialConnectionTimeout)
+          .append(pollAndChunk(lockedConsumer)(config.pollTimeout))
           .through(applyCommitPolicy(lockedConsumer)(config))
           .through(deserializer(config.keyDeserializer, config.valueDeserializer))
+
       )
   }
 }

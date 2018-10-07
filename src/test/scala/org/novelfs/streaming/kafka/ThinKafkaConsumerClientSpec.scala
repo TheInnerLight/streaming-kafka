@@ -19,7 +19,7 @@ class ThinKafkaConsumerClientSpec extends FlatSpec with Matchers with MockFactor
 
   "poll" should "call consumer.poll with supplied duration" in new ThinKafkaConsumerClientSpecContext {
     forAll { (d: FiniteDuration) =>
-      (rawKafkaConsumer.poll _) expects(d.toMillis) returns
+      (rawKafkaConsumer.poll(_ : java.time.Duration)) expects(java.time.Duration.ofMillis(d.toMillis)) returns
         (new ApacheConsumerRecords[String,String](Map.empty[org.apache.kafka.common.TopicPartition, java.util.List[ApacheConsumerRecord[String, String]]].asJava)) once()
 
       ThinKafkaConsumerClient[IO].poll(d)(kafkaSubscription).unsafeRunSync()

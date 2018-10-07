@@ -30,7 +30,8 @@ trait DomainArbitraries {
   implicit val stringConsumerRecordsArb: Arbitrary[List[ConsumerRecord[String, String]]] =
     Arbitrary(for{
       topicPartitionList <- topicPartitionListArb.arbitrary
-      tempRecords <- Gen.listOfN(1000, for {
+      size <- Gen.choose(50, 2117)
+      tempRecords <- Gen.listOfN(size, for {
         tp <- Gen.oneOf(topicPartitionList)
         key <- Gen.alphaStr
         value <- Gen.alphaStr
@@ -59,7 +60,10 @@ trait DomainArbitraries {
     } yield ProducerRecord(topic, None, key, value))
 
   implicit val stringProducerRecordsArb : Arbitrary[List[ProducerRecord[String, String]]] =
-    Arbitrary(Gen.listOfN(500, stringProducerRecordArb.arbitrary))
+    Arbitrary(for {
+      size <- Gen.choose(50, 2117)
+      records <- Gen.listOfN(size, stringProducerRecordArb.arbitrary)
+    } yield records)
 
   implicit val kafkaEncryptionSettingsArb: Arbitrary[KafkaEncryptionSettings] =
     Arbitrary(for {

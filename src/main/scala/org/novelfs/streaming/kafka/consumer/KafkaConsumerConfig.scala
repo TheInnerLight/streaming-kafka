@@ -9,16 +9,17 @@ import org.novelfs.streaming.kafka._
 import scala.concurrent.duration._
 
 case class KafkaConsumerConfig[K, V](
-    brokers              : List[String],
-    security             : KafkaSecuritySettings,
-    topics               : List[String],
-    clientId             : String,
-    groupId              : String,
-    commitOffsetSettings : KafkaOffsetCommitSettings,
-    pollTimeout          : FiniteDuration,
-    maxPollRecords       : Int,
-    keyDeserializer      : Deserializer[K],
-    valueDeserializer    : Deserializer[V]
+    brokers                  : List[String],
+    security                 : KafkaSecuritySettings,
+    topics                   : List[String],
+    clientId                 : String,
+    groupId                  : String,
+    commitOffsetSettings     : KafkaOffsetCommitSettings,
+    initialConnectionTimeout : FiniteDuration,
+    pollTimeout              : FiniteDuration,
+    maxPollRecords           : Int,
+    keyDeserializer          : Deserializer[K],
+    valueDeserializer        : Deserializer[V]
     )
 
 object KafkaConsumerConfig {
@@ -39,7 +40,8 @@ object KafkaConsumerConfig {
       clientId = clientId,
       groupId = groupId,
       commitOffsetSettings = KafkaOffsetCommitSettings.AutoCommit(500.milliseconds),
-      pollTimeout = 5000.milliseconds,
+      initialConnectionTimeout = 30.seconds,
+      pollTimeout = 200.milliseconds,
       maxPollRecords = 10000,
       keyDeserializer = keyDeserializer,
       valueDeserializer = valueDeserializer)
