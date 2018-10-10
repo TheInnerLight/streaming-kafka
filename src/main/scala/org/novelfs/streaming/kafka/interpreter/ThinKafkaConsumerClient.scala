@@ -23,8 +23,12 @@ object ThinKafkaConsumerClient {
       */
     override def commitOffsetMap[K, V](offsetMap: Map[TopicPartition, OffsetMetadata])(context: KafkaConsumerSubscription[K, V]): F[Unit] =
       Sync[F].delay {
-        context.kafkaConsumer.commitSync(offsetMap.toKafkaSdk)
-        log.debug(s"Offset committed: $offsetMap")
+        if(offsetMap.nonEmpty) {
+          context.kafkaConsumer.commitSync(offsetMap.toKafkaSdk)
+          log.debug(s"Offset committed: $offsetMap")
+        } else {
+          log.debug(s"Ignored empty offsetMap")
+        }
       }
 
     /**

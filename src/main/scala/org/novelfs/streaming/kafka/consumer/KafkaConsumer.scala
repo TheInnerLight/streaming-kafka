@@ -42,12 +42,24 @@ object KafkaConsumer {
       xs <- Stream
         .fixedRate(timeBetweenCommits)
         .evalMap(_ => obs.get)
-        .evalMap { offsetMap =>
-          lockedConsumer
-            .locked(consumer => ThinKafkaConsumerClient[F].commitOffsetMap(offsetMap)(consumer))
-            .onError { case ex =>
-              Sync[F].delay{ log.error("Error during offset commit", ex) }
+        .zipWithPrevious
+        .evalMap { case (maybePrevOffsetMap, currentOffsetMap) => {
+          val commitMap = maybePrevOffsetMap.getOrElse(Map.empty).foldLeft(currentOffsetMap){ case (map, (tp, metadata)) =>
+              map.get(tp) match {
+                case Some(metadata2) if metadata2 == metadata => map - tp
+                case _ => map
+              }
             }
+          lockedConsumer
+            .locked(consumer =>
+                ThinKafkaConsumerClient[F].commitOffsetMap(commitMap)(consumer)
+            )
+            .onError { case ex =>
+              Sync[F].delay {
+                log.error("Error during offset commit", ex)
+              }
+            }
+        }
         }
     } yield xs
 
