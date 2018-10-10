@@ -17,6 +17,7 @@ case class KafkaConsumerConfig[K, V](
     commitOffsetSettings     : KafkaOffsetCommitSettings,
     initialConnectionTimeout : FiniteDuration,
     pollTimeout              : FiniteDuration,
+    maxPollInterval          : FiniteDuration,
     maxPollRecords           : Int,
     keyDeserializer          : Deserializer[K],
     valueDeserializer        : Deserializer[V]
@@ -42,18 +43,20 @@ object KafkaConsumerConfig {
       commitOffsetSettings = KafkaOffsetCommitSettings.AutoCommit(500.milliseconds),
       initialConnectionTimeout = 30.seconds,
       pollTimeout = 200.milliseconds,
-      maxPollRecords = 10000,
+      maxPollRecords = 500,
+      maxPollInterval = 180.seconds,
       keyDeserializer = keyDeserializer,
       valueDeserializer = valueDeserializer)
 
   def generateProperties[K, V](kafkaConsumerConfig: KafkaConsumerConfig[K, V]): Properties = {
     val props = new Properties()
-    props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG,  kafkaConsumerConfig.brokers.mkString(","))
-    props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG,   kafkaConsumerConfig.maxPollRecords.toString)
-    props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false")
-    props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG,  "earliest")
-    props.put(ConsumerConfig.CLIENT_ID_CONFIG,          kafkaConsumerConfig.clientId)
-    props.put(ConsumerConfig.GROUP_ID_CONFIG,           kafkaConsumerConfig.groupId)
+    props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG,    kafkaConsumerConfig.brokers.mkString(","))
+    props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG,     kafkaConsumerConfig.maxPollRecords.toString)
+    props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG,   "false")
+    props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG,    "earliest")
+    props.put(ConsumerConfig.CLIENT_ID_CONFIG,            kafkaConsumerConfig.clientId)
+    props.put(ConsumerConfig.GROUP_ID_CONFIG,             kafkaConsumerConfig.groupId)
+    props.put(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG, kafkaConsumerConfig.maxPollInterval.toMillis.toString)
     kafkaConsumerConfig.security match {
       case KafkaSecuritySettings.EncryptedAndAuthenticated(encryptionSettings, authSettings) =>
         KafkaSecuritySettings.addEncryptionProps(KafkaSecuritySettings.addAuthenticationProps(props)(authSettings))(encryptionSettings)

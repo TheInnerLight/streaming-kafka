@@ -72,7 +72,6 @@ object KafkaConsumer {
         case KafkaOffsetCommitSettings.AutoCommit(timeBetweenCommits) =>
           for {
             queue <- Stream.eval(Queue.unbounded[F, Map[TopicPartition, OffsetMetadata]])
-            errorSignal <- Stream.eval(SignallingRef[F, Boolean](false))
             mainStream = stream.through(publishOffsetsToQueue(queue))
             commitStream = commitOffsetsFromQueueEvery(timeBetweenCommits)(consumerVar)(queue).drain
             y <- Stream(mainStream, commitStream).parJoin(2)
@@ -87,9 +86,9 @@ object KafkaConsumer {
     val byteConfig = config.copy(keyDeserializer = new ByteArrayDeserializer(), valueDeserializer = new ByteArrayDeserializer())
     val thinKafkaConsumerClient = ThinKafkaConsumerClient[F]
 
-    def subscribe = for {
+    def subscribe: Resource[F, MVar[F, KafkaConsumerSubscription[Array[Byte], Array[Byte]]]] = for {
       consumer <- KafkaConsumerSubscription(byteConfig)
-      result <- MVar.of(consumer)
+      result <- Resource.liftF(MVar.of(consumer))
     } yield result
 
     def pollAndChunk(lockedConsumer : MVar[F, KafkaConsumerSubscription[Array[Byte], Array[Byte]]])(timeout : FiniteDuration): Stream[F, ConsumerRecord[Array[Byte], Array[Byte]]] =
@@ -99,7 +98,7 @@ object KafkaConsumer {
       } yield process
 
     Stream
-      .bracket(subscribe)(lockedConsumer => lockedConsumer.take.flatMap(KafkaConsumerSubscription.cleanup(_)))
+      .resource(subscribe)
       .flatMap(lockedConsumer =>
         pollAndChunk(lockedConsumer)(config.initialConnectionTimeout)
           .append(pollAndChunk(lockedConsumer)(config.pollTimeout).repeat)

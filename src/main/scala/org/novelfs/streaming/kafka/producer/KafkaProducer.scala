@@ -13,7 +13,6 @@ import KafkaSdkConversions._
 final case class KafkaProducer[K, V] private (kafkaProducer : ApacheKafkaProducer[K, V])
 
 object KafkaProducer {
-  //private val log = LoggerFactory.getLogger(KafkaProducer.getClass)
 
   /**
     * A pipe that serialises records to bytes using supplied key and value serialisers
