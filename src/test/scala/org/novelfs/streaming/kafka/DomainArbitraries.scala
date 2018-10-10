@@ -12,7 +12,7 @@ trait DomainArbitraries {
   implicit val finiteDurationArb: Arbitrary[FiniteDuration] = Arbitrary(Gen.choose(0, 1000).map(_.milliseconds))
 
   implicit val offsetMap: Arbitrary[Map[TopicPartition, OffsetMetadata]] =
-    Arbitrary(Gen.mapOf(for {
+    Arbitrary(Gen.nonEmptyMap(for {
       topic <- Gen.alphaStr
       partition <- Arbitrary.arbInt.arbitrary
       offset <- Arbitrary.arbLong.arbitrary
