@@ -94,7 +94,7 @@ object KafkaConsumer {
 
     def pollAndChunk(lockedConsumer : MVar[F, KafkaConsumerSubscription[Array[Byte], Array[Byte]]])(timeout : FiniteDuration): Stream[F, ConsumerRecord[Array[Byte], Array[Byte]]] =
       for {
-        records <- Stream.repeatEval(lockedConsumer.locked(consumer => thinKafkaConsumerClient.poll(config.pollTimeout)(consumer))).scope
+        records <- Stream.eval(lockedConsumer.locked(consumer => thinKafkaConsumerClient.poll(config.pollTimeout)(consumer))).scope
         process <- Stream.chunk(Chunk.vector(records)).covary[F]
       } yield process
 
@@ -102,7 +102,7 @@ object KafkaConsumer {
       .bracket(subscribe)(lockedConsumer => lockedConsumer.take.flatMap(KafkaConsumerSubscription.cleanup(_)))
       .flatMap(lockedConsumer =>
         pollAndChunk(lockedConsumer)(config.initialConnectionTimeout)
-          .append(pollAndChunk(lockedConsumer)(config.pollTimeout))
+          .append(pollAndChunk(lockedConsumer)(config.pollTimeout).repeat)
           .through(applyCommitPolicy(lockedConsumer)(config))
           .through(deserializer(config.keyDeserializer, config.valueDeserializer))
 

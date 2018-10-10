@@ -11,8 +11,7 @@ val typesafeConfigVersion = "1.3.1"
 val fs2Version = "1.0.0"
 
 libraryDependencies ++= Seq(
-  "ch.qos.logback" % "logback-classic" % "1.2.3" % Test
-  , "com.typesafe" % "config" % typesafeConfigVersion
+    "com.typesafe" % "config" % typesafeConfigVersion
   , "org.scalactic" %% "scalactic" % scalatestVersion
   , "org.scalatest" %% "scalatest" % scalatestVersion % Test
   , "org.scalamock" %% "scalamock" % "4.1.0" % Test
