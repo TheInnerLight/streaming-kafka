@@ -55,4 +55,40 @@ class ThinKafkaConsumerClientSpec extends FlatSpec with Matchers with MockFactor
 
     ThinKafkaConsumerClient[IO].topicPartitionAssignments(kafkaSubscription).unsafeRunSync()
   }
+
+  "seekToBeginning" should "call consumer.seekToBeginning" in new ThinKafkaConsumerClientSpecContext {
+    forAll { (partitionSet : Set[TopicPartition]) =>
+
+      val javaSet = partitionSet.toKafkaSdk
+
+      (rawKafkaConsumer.seekToBeginning(_ : java.util.Collection[org.apache.kafka.common.TopicPartition]))
+        .expects (javaSet) once()
+
+
+      ThinKafkaConsumerClient[IO].seekToBeginning(partitionSet)(kafkaSubscription).unsafeRunSync()
+    }
+  }
+
+  "seekToEnd" should "call consumer.seekToEnd" in new ThinKafkaConsumerClientSpecContext {
+    forAll { (partitionSet : Set[TopicPartition]) =>
+
+      val javaSet = partitionSet.toKafkaSdk
+
+      (rawKafkaConsumer.seekToEnd(_ : java.util.Collection[org.apache.kafka.common.TopicPartition]))
+        .expects (javaSet) once()
+
+
+      ThinKafkaConsumerClient[IO].seekToEnd(partitionSet)(kafkaSubscription).unsafeRunSync()
+    }
+  }
+
+  "seekTo" should "call consumer.seek" in new ThinKafkaConsumerClientSpecContext {
+    forAll { (offsetMap: Map[TopicPartition, OffsetMetadata]) =>
+      offsetMap.foreach{ case (tp, om) =>
+        (rawKafkaConsumer.seek(_, _)).expects(tp.toKafkaSdk, om.toKafkaSdk.offset) once()
+      }
+
+      ThinKafkaConsumerClient[IO].seekTo(offsetMap)(kafkaSubscription).unsafeRunSync()
+    }
+  }
 }

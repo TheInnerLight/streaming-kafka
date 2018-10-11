@@ -98,6 +98,12 @@ trait ToSdkConversions {
         .asJava
   }
 
+  implicit def setToKafkaSdk[T1, T2](implicit ev : ToKafkaSdk[T1, T2]) = new ToKafkaSdk[Set[T1], util.Set[T2]] {
+    override def toKafkaSdk(input: Set[T1]): util.Set[T2] =
+      input.map(ev.toKafkaSdk(_))
+        .asJava
+  }
+
   implicit def producerRecordToKafkaSdk[K, V] = new ToKafkaSdk[ProducerRecord[K, V], ApacheProducerRecord[K, V]] {
     override def toKafkaSdk(kafkaRecord: ProducerRecord[K, V]): ApacheProducerRecord[K, V] = {
       val headers: Array[Header] = kafkaRecord.headers.toArray.map(h => new RecordHeader(h.key, h.value) )

@@ -98,10 +98,24 @@ object KafkaConsumer {
     val byteConfig = config.copy(keyDeserializer = new ByteArrayDeserializer(), valueDeserializer = new ByteArrayDeserializer())
     val thinKafkaConsumerClient = ThinKafkaConsumerClient[F]
 
-    def subscribe: Resource[F, MVar[F, KafkaConsumerSubscription[Array[Byte], Array[Byte]]]] = for {
-      consumer <- KafkaConsumerSubscription(byteConfig)
-      result <- Resource.liftF(MVar.of(consumer))
-    } yield result
+    def subscribe: Resource[F, MVar[F, KafkaConsumerSubscription[Array[Byte], Array[Byte]]]] =
+      for {
+        consumer <- KafkaConsumerSubscription(byteConfig)
+        result <- Resource.liftF(MVar.of(consumer))
+      } yield result
+
+    def assignStartingPosition(startingPosition: StartingPosition)(lockedConsumer : MVar[F, KafkaConsumerSubscription[Array[Byte], Array[Byte]]]) =
+      lockedConsumer.locked(subscription =>
+        for {
+          topicPartitions <- thinKafkaConsumerClient.topicPartitionAssignments(subscription)
+          _ <- startingPosition match {
+            case StartingPosition.Beginning     => thinKafkaConsumerClient.seekToBeginning(topicPartitions)(subscription)
+            case StartingPosition.End           => thinKafkaConsumerClient.seekToEnd(topicPartitions)(subscription)
+            case StartingPosition.Explicit(pos) => thinKafkaConsumerClient.seekTo(pos)(subscription)
+            case StartingPosition.LastCommitted => Sync[F].unit
+          }
+        } yield ()
+      )
 
     def pollAndChunk(lockedConsumer : MVar[F, KafkaConsumerSubscription[Array[Byte], Array[Byte]]])(timeout : FiniteDuration): Stream[F, ConsumerRecord[Array[Byte], Array[Byte]]] =
       for {
@@ -111,10 +125,11 @@ object KafkaConsumer {
 
     Stream
       .resource(subscribe)
-      .flatMap(lockedConsumer =>
-        pollAndChunk(lockedConsumer)(config.initialConnectionTimeout)
-          .append(pollAndChunk(lockedConsumer)(config.pollTimeout).repeat)
-          .through(applyCommitPolicy(lockedConsumer)(config))
+      .evalTap(lockedSubscription => assignStartingPosition(config.startingPosition)(lockedSubscription))
+      .flatMap(lockedSubscription =>
+        pollAndChunk(lockedSubscription)(config.initialConnectionTimeout)
+          .append(pollAndChunk(lockedSubscription)(config.pollTimeout).repeat)
+          .through(applyCommitPolicy(lockedSubscription)(config))
           .through(deserializer(config.keyDeserializer, config.valueDeserializer))
 
       )

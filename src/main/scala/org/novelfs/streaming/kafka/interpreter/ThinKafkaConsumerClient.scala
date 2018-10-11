@@ -32,6 +32,28 @@ object ThinKafkaConsumerClient {
       }
 
     /**
+      * An effect that seeks to the supplied offset for each of the given partitions.
+      */
+    override def seekTo[K, V](topicPartitionOffsets : Map[TopicPartition, OffsetMetadata])(context: KafkaConsumerSubscription[K, V]) : F[Unit] =
+      Sync[F].delay {
+        topicPartitionOffsets.foreach {
+          case (tp, om) => context.kafkaConsumer.seek(tp.toKafkaSdk, om.toKafkaSdk.offset)
+        }
+      }
+
+    /**
+      * An effect that seeks to the first offset for each of the given partitions.
+      */
+    override def seekToBeginning[K, V](topicPartitions : Set[TopicPartition])(context: KafkaConsumerSubscription[K, V]) : F[Unit] =
+      Sync[F].delay { context.kafkaConsumer.seekToBeginning(topicPartitions.toKafkaSdk) }
+
+    /**
+      * An effect that seeks to the last offset for each of the given partitions.
+      */
+    override def seekToEnd[K, V](topicPartitions : Set[TopicPartition])(context: KafkaConsumerSubscription[K, V]) : F[Unit] =
+      Sync[F].delay { context.kafkaConsumer.seekToEnd(topicPartitions.toKafkaSdk) }
+
+    /**
       * An effect that polls kafka (once) with a supplied timeout
       */
     override def poll[K, V](pollTimeout: FiniteDuration)(context: KafkaConsumerSubscription[K, V]): F[Vector[ConsumerRecord[K, V]]] =
@@ -42,6 +64,6 @@ object ThinKafkaConsumerClient {
       */
     override def topicPartitionAssignments[K, V](context: KafkaConsumerSubscription[K, V]): F[Set[TopicPartition]] =
       Sync[F].delay { context.kafkaConsumer.assignment().fromKafkaSdk }
-  }
 
+  }
 }

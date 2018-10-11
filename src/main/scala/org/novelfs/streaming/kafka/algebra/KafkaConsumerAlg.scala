@@ -18,6 +18,21 @@ trait KafkaConsumerAlg[F[_], TContext[_, _]] {
   def poll[K, V](pollTimeout : FiniteDuration)(context: TContext[K, V]) : F[Vector[ConsumerRecord[K, V]]]
 
   /**
+    * An effect that seeks to the supplied offset for each of the given partitions.
+    */
+  def seekTo[K, V](topicPartitionOffsets : Map[TopicPartition, OffsetMetadata])(context: TContext[K, V]) : F[Unit]
+
+  /**
+    * An effect that seeks to the first offset for each of the given partitions.
+    */
+  def seekToBeginning[K, V](topicPartitions: Set[TopicPartition])(context: TContext[K, V]) : F[Unit]
+
+  /**
+    * An effect that seeks to the last offset for each of the given partitions.
+    */
+  def seekToEnd[K, V](topicPartitions: Set[TopicPartition])(context: TContext[K, V]) : F[Unit]
+
+  /**
     * An effect to return the set of topic and partition assignments attached to the supplied consumer
     */
   def topicPartitionAssignments[K, V](context: TContext[K, V]): F[Set[TopicPartition]]
