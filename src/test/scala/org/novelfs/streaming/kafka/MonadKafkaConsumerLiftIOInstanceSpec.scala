@@ -4,14 +4,16 @@ import cats.effect.IO
 import org.novelfs.streaming.kafka.consumer.{KafkaConsumerSubscription, OffsetMetadata}
 import org.novelfs.streaming.kafka.KafkaSdkConversions._
 import org.apache.kafka.clients.consumer.{Consumer => ApacheKafkaConsumer, ConsumerRecord => ApacheConsumerRecord, ConsumerRecords => ApacheConsumerRecords}
-import org.novelfs.streaming.kafka.interpreter.ThinKafkaConsumerClient
+import org.novelfs.streaming.kafka.effects.MonadKafkaConsumer
 import org.scalamock.scalatest.MockFactory
 import org.scalatest.{FlatSpec, Matchers}
 import org.scalatest.prop.GeneratorDrivenPropertyChecks
+
 import scala.concurrent.duration.FiniteDuration
 import scala.collection.JavaConverters._
+import org.novelfs.streaming.kafka.effects.io._
 
-class ThinKafkaConsumerClientSpec extends FlatSpec with Matchers with MockFactory with GeneratorDrivenPropertyChecks with DomainArbitraries {
+class MonadKafkaConsumerLiftIOInstanceSpec extends FlatSpec with Matchers with MockFactory with GeneratorDrivenPropertyChecks with DomainArbitraries {
   trait ThinKafkaConsumerClientSpecContext {
     val rawKafkaConsumer = mock[ApacheKafkaConsumer[String, String]]
     val kafkaSubscription = KafkaConsumerSubscription(rawKafkaConsumer)
@@ -22,7 +24,7 @@ class ThinKafkaConsumerClientSpec extends FlatSpec with Matchers with MockFactor
       (rawKafkaConsumer.poll(_ : java.time.Duration)) expects(java.time.Duration.ofMillis(d.toMillis)) returns
         (new ApacheConsumerRecords[String,String](Map.empty[org.apache.kafka.common.TopicPartition, java.util.List[ApacheConsumerRecord[String, String]]].asJava)) once()
 
-      ThinKafkaConsumerClient[IO].poll(d)(kafkaSubscription).unsafeRunSync()
+      MonadKafkaConsumer[IO].poll(d)(kafkaSubscription).unsafeRunSync()
     }
   }
 
@@ -33,7 +35,7 @@ class ThinKafkaConsumerClientSpec extends FlatSpec with Matchers with MockFactor
       (rawKafkaConsumer.commitSync(_ : java.util.Map[org.apache.kafka.common.TopicPartition,  org.apache.kafka.clients.consumer.OffsetAndMetadata]))
         .expects (javaMap) once()
 
-      ThinKafkaConsumerClient[IO].commitOffsetMap(offsetMap)(kafkaSubscription).unsafeRunSync()
+      MonadKafkaConsumer[IO].commitOffsetMap(offsetMap)(kafkaSubscription).unsafeRunSync()
     }
   }
 
@@ -44,7 +46,7 @@ class ThinKafkaConsumerClientSpec extends FlatSpec with Matchers with MockFactor
       (rawKafkaConsumer.commitSync(_ : java.util.Map[org.apache.kafka.common.TopicPartition,  org.apache.kafka.clients.consumer.OffsetAndMetadata]))
         .expects (javaMap) onCall { (_ : java.util.Map[org.apache.kafka.common.TopicPartition,  org.apache.kafka.clients.consumer.OffsetAndMetadata]) => throw new RuntimeException("Argh") } once()
 
-      val result = ThinKafkaConsumerClient[IO].commitOffsetMap(offsetMap)(kafkaSubscription).attempt.unsafeRunSync()
+      val result = MonadKafkaConsumer[IO].commitOffsetMap(offsetMap)(kafkaSubscription).attempt.unsafeRunSync()
 
       result.isRight shouldBe false
     }
@@ -53,7 +55,7 @@ class ThinKafkaConsumerClientSpec extends FlatSpec with Matchers with MockFactor
   "topicPartitionAssignments" should "call consumer.assignment" in new ThinKafkaConsumerClientSpecContext {
     ((rawKafkaConsumer.assignment _) : () => java.util.Set[org.apache.kafka.common.TopicPartition]).expects().returns(new java.util.HashSet[org.apache.kafka.common.TopicPartition]())
 
-    ThinKafkaConsumerClient[IO].topicPartitionAssignments(kafkaSubscription).unsafeRunSync()
+    MonadKafkaConsumer[IO].topicPartitionAssignments(kafkaSubscription).unsafeRunSync()
   }
 
   "seekToBeginning" should "call consumer.seekToBeginning" in new ThinKafkaConsumerClientSpecContext {
@@ -65,7 +67,7 @@ class ThinKafkaConsumerClientSpec extends FlatSpec with Matchers with MockFactor
         .expects (javaSet) once()
 
 
-      ThinKafkaConsumerClient[IO].seekToBeginning(partitionSet)(kafkaSubscription).unsafeRunSync()
+      MonadKafkaConsumer[IO].seekToBeginning(partitionSet)(kafkaSubscription).unsafeRunSync()
     }
   }
 
@@ -78,7 +80,7 @@ class ThinKafkaConsumerClientSpec extends FlatSpec with Matchers with MockFactor
         .expects (javaSet) once()
 
 
-      ThinKafkaConsumerClient[IO].seekToEnd(partitionSet)(kafkaSubscription).unsafeRunSync()
+      MonadKafkaConsumer[IO].seekToEnd(partitionSet)(kafkaSubscription).unsafeRunSync()
     }
   }
 
@@ -88,7 +90,7 @@ class ThinKafkaConsumerClientSpec extends FlatSpec with Matchers with MockFactor
         (rawKafkaConsumer.seek(_, _)).expects(tp.toKafkaSdk, om.toKafkaSdk.offset) once()
       }
 
-      ThinKafkaConsumerClient[IO].seekTo(offsetMap)(kafkaSubscription).unsafeRunSync()
+      MonadKafkaConsumer[IO].seekTo(offsetMap)(kafkaSubscription).unsafeRunSync()
     }
   }
 }

@@ -9,7 +9,7 @@ import org.scalatest.prop.GeneratorDrivenPropertyChecks
 import fs2._
 import org.novelfs.streaming.kafka.consumer.{KafkaConsumer, KafkaConsumerConfig}
 import org.scalatest.tagobjects.Slow
-
+import org.novelfs.streaming.kafka.effects.io._
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.util.Random
 

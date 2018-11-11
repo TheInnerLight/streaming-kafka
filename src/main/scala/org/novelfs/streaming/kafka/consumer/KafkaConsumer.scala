@@ -7,13 +7,11 @@ import org.apache.kafka.common.serialization.{ByteArrayDeserializer, Deserialize
 import org.novelfs.streaming.kafka._
 import org.slf4j.LoggerFactory
 import org.novelfs.streaming.kafka.utils._
-
-import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 import cats.Functor
 import fs2.concurrent.{Queue, Signal, SignallingRef}
 import cats.effect.concurrent.MVar
-import org.novelfs.streaming.kafka.interpreter.ThinKafkaConsumerClient
+import org.novelfs.streaming.kafka.effects.MonadKafkaConsumer
 
 object KafkaConsumer {
 
@@ -36,7 +34,7 @@ object KafkaConsumer {
   /**
     * A stream that commits the offsets in the supplied queue to kafka, using the supplied kafka consumer every supplied timeBetweenCommits
     */
-  def commitOffsetsFromQueueEvery[F[_] : ConcurrentEffect : Timer, K, V](timeBetweenCommits : FiniteDuration)(lockedConsumer : MVar[F, KafkaConsumerSubscription[K, V]])(queue : Queue[F, Map[TopicPartition, OffsetMetadata]]): Stream[F, Unit] =
+  def commitOffsetsFromQueueEvery[F[_] : Concurrent : Timer, K, V](timeBetweenCommits : FiniteDuration)(lockedConsumer : MVar[F, KafkaConsumerSubscription[K, V]])(queue : Queue[F, Map[TopicPartition, OffsetMetadata]])(implicit monadKafkaConsumer: MonadKafkaConsumer.Aux[F, KafkaConsumerSubscription]): Stream[F, Unit] =
     for {
       obs <- queue.dequeue.hold(Map.empty[TopicPartition, OffsetMetadata])
       xs <- Stream
@@ -52,7 +50,7 @@ object KafkaConsumer {
             }
           lockedConsumer
             .locked(consumer =>
-                ThinKafkaConsumerClient[F].commitOffsetMap(commitMap)(consumer)
+                monadKafkaConsumer.commitOffsetMap(commitMap)(consumer)
             )
             .onError { case ex =>
               Sync[F].delay {
@@ -78,7 +76,7 @@ object KafkaConsumer {
   /**
     * A pipe that applies the kafka offset commit settings policy from the config
     */
-  def applyCommitPolicy[F[_] : ConcurrentEffect : Timer, K, V](consumerVar : MVar[F, KafkaConsumerSubscription[Array[Byte], Array[Byte]]])(config : KafkaConsumerConfig[K, V]) : Pipe[F, ConsumerRecord[Array[Byte], Array[Byte]], ConsumerRecord[Array[Byte], Array[Byte]]] =
+  def applyCommitPolicy[F[_] : Concurrent : Timer, K, V](consumerVar : MVar[F, KafkaConsumerSubscription[Array[Byte], Array[Byte]]])(config : KafkaConsumerConfig[K, V])(implicit monadKafkaConsumer: MonadKafkaConsumer.Aux[F, KafkaConsumerSubscription]) : Pipe[F, ConsumerRecord[Array[Byte], Array[Byte]], ConsumerRecord[Array[Byte], Array[Byte]]] =
     stream =>
       config.commitOffsetSettings match {
         case KafkaOffsetCommitSettings.AutoCommit(timeBetweenCommits) =>
@@ -94,9 +92,8 @@ object KafkaConsumer {
   /**
     * Creates a streaming subscription using the supplied kafka configuration
     */
-  def apply[F[_] : ConcurrentEffect : Timer, K, V](config : KafkaConsumerConfig[K, V]): Stream[F, Either[Throwable, ConsumerRecord[K, V]]] = {
+  def apply[F[_] : Concurrent : Timer, K, V](config : KafkaConsumerConfig[K, V])(implicit monadKafkaConsumer: MonadKafkaConsumer.Aux[F, KafkaConsumerSubscription]): Stream[F, Either[Throwable, ConsumerRecord[K, V]]] = {
     val byteConfig = config.copy(keyDeserializer = new ByteArrayDeserializer(), valueDeserializer = new ByteArrayDeserializer())
-    val thinKafkaConsumerClient = ThinKafkaConsumerClient[F]
 
     def subscribe: Resource[F, MVar[F, KafkaConsumerSubscription[Array[Byte], Array[Byte]]]] =
       for {
@@ -107,11 +104,11 @@ object KafkaConsumer {
     def assignStartingPosition(startingPosition: StartingPosition)(lockedConsumer : MVar[F, KafkaConsumerSubscription[Array[Byte], Array[Byte]]]) =
       lockedConsumer.locked(subscription =>
         for {
-          topicPartitions <- thinKafkaConsumerClient.topicPartitionAssignments(subscription)
+          topicPartitions <- monadKafkaConsumer.topicPartitionAssignments(subscription)
           _ <- startingPosition match {
-            case StartingPosition.Beginning     => thinKafkaConsumerClient.seekToBeginning(topicPartitions)(subscription)
-            case StartingPosition.End           => thinKafkaConsumerClient.seekToEnd(topicPartitions)(subscription)
-            case StartingPosition.Explicit(pos) => thinKafkaConsumerClient.seekTo(pos)(subscription)
+            case StartingPosition.Beginning     => monadKafkaConsumer.seekToBeginning(topicPartitions)(subscription)
+            case StartingPosition.End           => monadKafkaConsumer.seekToEnd(topicPartitions)(subscription)
+            case StartingPosition.Explicit(pos) => monadKafkaConsumer.seekTo(pos)(subscription)
             case StartingPosition.LastCommitted => Sync[F].unit
           }
         } yield ()
@@ -119,7 +116,7 @@ object KafkaConsumer {
 
     def pollAndChunk(lockedConsumer : MVar[F, KafkaConsumerSubscription[Array[Byte], Array[Byte]]])(timeout : FiniteDuration): Stream[F, ConsumerRecord[Array[Byte], Array[Byte]]] =
       for {
-        records <- Stream.eval(lockedConsumer.locked(consumer => thinKafkaConsumerClient.poll(config.pollTimeout)(consumer))).scope
+        records <- Stream.eval(lockedConsumer.locked(consumer => monadKafkaConsumer.poll(config.pollTimeout)(consumer))).scope
         process <- Stream.chunk(Chunk.vector(records)).covary[F]
       } yield process
 
