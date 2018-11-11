@@ -79,7 +79,7 @@ package object io {
     /**
       * An effect that sends a supplied producer records to the supplier kafka producer
       */
-    override def send[K, V, G[_] : Foldable](records: G[ProducerRecord[K, V]])(context: KafkaProducerSubscription[K, V]): F[Unit] =
+    override def sendN[K, V, G[_] : Foldable](records: G[ProducerRecord[K, V]])(context: KafkaProducerSubscription[K, V]): F[Unit] =
       records.traverse_(record => send(record)(context))
   }
 }

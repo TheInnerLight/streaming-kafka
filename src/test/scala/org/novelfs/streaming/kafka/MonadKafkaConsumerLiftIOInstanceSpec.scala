@@ -14,12 +14,12 @@ import scala.collection.JavaConverters._
 import org.novelfs.streaming.kafka.effects.io._
 
 class MonadKafkaConsumerLiftIOInstanceSpec extends FlatSpec with Matchers with MockFactory with GeneratorDrivenPropertyChecks with DomainArbitraries {
-  trait ThinKafkaConsumerClientSpecContext {
+  trait MonadKafkaConsumerLiftIOInstanceSpecContext {
     val rawKafkaConsumer = mock[ApacheKafkaConsumer[String, String]]
     val kafkaSubscription = KafkaConsumerSubscription(rawKafkaConsumer)
   }
 
-  "poll" should "call consumer.poll with supplied duration" in new ThinKafkaConsumerClientSpecContext {
+  "poll" should "call consumer.poll with supplied duration" in new MonadKafkaConsumerLiftIOInstanceSpecContext {
     forAll { (d: FiniteDuration) =>
       (rawKafkaConsumer.poll(_ : java.time.Duration)) expects(java.time.Duration.ofMillis(d.toMillis)) returns
         (new ApacheConsumerRecords[String,String](Map.empty[org.apache.kafka.common.TopicPartition, java.util.List[ApacheConsumerRecord[String, String]]].asJava)) once()
@@ -28,7 +28,7 @@ class MonadKafkaConsumerLiftIOInstanceSpec extends FlatSpec with Matchers with M
     }
   }
 
-  "commit offset map" should "call consumer.commitSync with the supplied OffsetMap" in new ThinKafkaConsumerClientSpecContext {
+  "commit offset map" should "call consumer.commitSync with the supplied OffsetMap" in new MonadKafkaConsumerLiftIOInstanceSpecContext {
     forAll { (offsetMap : Map[TopicPartition, OffsetMetadata]) =>
       val javaMap = offsetMap.toKafkaSdk
 
@@ -39,7 +39,7 @@ class MonadKafkaConsumerLiftIOInstanceSpec extends FlatSpec with Matchers with M
     }
   }
 
-  "commit offset map" should "fail if an error was received from the callback" in new ThinKafkaConsumerClientSpecContext {
+  "commit offset map" should "fail if an error was received from the callback" in new MonadKafkaConsumerLiftIOInstanceSpecContext {
     forAll { (offsetMap : Map[TopicPartition, OffsetMetadata]) =>
       val javaMap = offsetMap.toKafkaSdk
 
@@ -52,13 +52,13 @@ class MonadKafkaConsumerLiftIOInstanceSpec extends FlatSpec with Matchers with M
     }
   }
 
-  "topicPartitionAssignments" should "call consumer.assignment" in new ThinKafkaConsumerClientSpecContext {
+  "topicPartitionAssignments" should "call consumer.assignment" in new MonadKafkaConsumerLiftIOInstanceSpecContext {
     ((rawKafkaConsumer.assignment _) : () => java.util.Set[org.apache.kafka.common.TopicPartition]).expects().returns(new java.util.HashSet[org.apache.kafka.common.TopicPartition]())
 
     MonadKafkaConsumer[IO].topicPartitionAssignments(kafkaSubscription).unsafeRunSync()
   }
 
-  "seekToBeginning" should "call consumer.seekToBeginning" in new ThinKafkaConsumerClientSpecContext {
+  "seekToBeginning" should "call consumer.seekToBeginning" in new MonadKafkaConsumerLiftIOInstanceSpecContext {
     forAll { (partitionSet : Set[TopicPartition]) =>
 
       val javaSet = partitionSet.toKafkaSdk
@@ -71,7 +71,7 @@ class MonadKafkaConsumerLiftIOInstanceSpec extends FlatSpec with Matchers with M
     }
   }
 
-  "seekToEnd" should "call consumer.seekToEnd" in new ThinKafkaConsumerClientSpecContext {
+  "seekToEnd" should "call consumer.seekToEnd" in new MonadKafkaConsumerLiftIOInstanceSpecContext {
     forAll { (partitionSet : Set[TopicPartition]) =>
 
       val javaSet = partitionSet.toKafkaSdk
@@ -84,7 +84,7 @@ class MonadKafkaConsumerLiftIOInstanceSpec extends FlatSpec with Matchers with M
     }
   }
 
-  "seekTo" should "call consumer.seek" in new ThinKafkaConsumerClientSpecContext {
+  "seekTo" should "call consumer.seek" in new MonadKafkaConsumerLiftIOInstanceSpecContext {
     forAll { (offsetMap: Map[TopicPartition, OffsetMetadata]) =>
       offsetMap.foreach{ case (tp, om) =>
         (rawKafkaConsumer.seek(_, _)).expects(tp.toKafkaSdk, om.toKafkaSdk.offset) once()

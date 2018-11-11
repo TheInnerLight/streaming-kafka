@@ -15,7 +15,7 @@ import simulacrum.typeclass
   /**
     * An effect that sends a supplied producer records to the supplier kafka producer
     */
-  def send[K, V, G[_] : Foldable](records : G[ProducerRecord[K, V]])(context : TContext[K, V]) : F[Unit]
+  def sendN[K, V, G[_] : Foldable](records : G[ProducerRecord[K, V]])(context : TContext[K, V]) : F[Unit]
 }
 
 object MonadKafkaProducer {
