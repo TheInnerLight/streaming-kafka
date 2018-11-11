@@ -1,12 +1,13 @@
 package org.novelfs.streaming.kafka.effects
 
-import cats.Monad
+import cats.{Foldable, Monad}
 import cats.implicits._
 import cats.effect.{IO, LiftIO, Sync}
 import cats.mtl.{ApplicativeAsk, ApplicativeLocal}
 import org.novelfs.streaming.kafka.TopicPartition
 import org.novelfs.streaming.kafka.consumer.{ConsumerRecord, KafkaConsumerSubscription, OffsetMetadata}
 import org.novelfs.streaming.kafka.KafkaSdkConversions._
+import org.novelfs.streaming.kafka.producer.{KafkaProducerSubscription, ProducerRecord}
 import org.slf4j.LoggerFactory
 
 import scala.concurrent.duration.FiniteDuration
@@ -64,5 +65,21 @@ package object io {
       */
     override def topicPartitionAssignments[K, V](context: KafkaConsumerSubscription[K, V]): F[Set[TopicPartition]] =
       LiftIO[F].liftIO(IO { context.kafkaConsumer.assignment().fromKafkaSdk })
+  }
+
+  implicit def ioKafkaProducer[F[_] : LiftIO : Monad] = new MonadKafkaProducer[F] {
+    override type TContext[A, B] = KafkaProducerSubscription[A, B]
+
+    /**
+      * An effect that sends a supplied producer record to the supplier kafka producer
+      */
+    override def send[K, V](record: ProducerRecord[K, V])(context: KafkaProducerSubscription[K, V]): F[Unit] =
+      LiftIO[F].liftIO { IO { context.kafkaProducer.send(record.toKafkaSdk) } } *> Monad[F].unit
+
+    /**
+      * An effect that sends a supplied producer records to the supplier kafka producer
+      */
+    override def send[K, V, G[_] : Foldable](records: G[ProducerRecord[K, V]])(context: KafkaProducerSubscription[K, V]): F[Unit] =
+      records.traverse_(record => send(record)(context))
   }
 }
