@@ -36,7 +36,7 @@ object KafkaConsumer {
   /**
     * A stream that commits the offsets in the supplied queue to kafka, using the supplied kafka consumer every supplied timeBetweenCommits
     */
-  def commitOffsetsFromQueueEvery[F[_] : ConcurrentEffect : Timer, K, V](timeBetweenCommits : FiniteDuration)(lockedConsumer : MVar[F, KafkaConsumerSubscription[K, V]])(queue : Queue[F, Map[TopicPartition, OffsetMetadata]]): Stream[F, Unit] =
+  def commitOffsetsFromQueueEvery[F[_] : Concurrent : Timer, K, V](timeBetweenCommits : FiniteDuration)(lockedConsumer : MVar[F, KafkaConsumerSubscription[K, V]])(queue : Queue[F, Map[TopicPartition, OffsetMetadata]]): Stream[F, Unit] =
     for {
       obs <- queue.dequeue.hold(Map.empty[TopicPartition, OffsetMetadata])
       xs <- Stream
@@ -78,7 +78,7 @@ object KafkaConsumer {
   /**
     * A pipe that applies the kafka offset commit settings policy from the config
     */
-  def applyCommitPolicy[F[_] : ConcurrentEffect : Timer, K, V](consumerVar : MVar[F, KafkaConsumerSubscription[Array[Byte], Array[Byte]]])(config : KafkaConsumerConfig[K, V]) : Pipe[F, ConsumerRecord[Array[Byte], Array[Byte]], ConsumerRecord[Array[Byte], Array[Byte]]] =
+  def applyCommitPolicy[F[_] : Concurrent : Timer, K, V](consumerVar : MVar[F, KafkaConsumerSubscription[Array[Byte], Array[Byte]]])(config : KafkaConsumerConfig[K, V]) : Pipe[F, ConsumerRecord[Array[Byte], Array[Byte]], ConsumerRecord[Array[Byte], Array[Byte]]] =
     stream =>
       config.commitOffsetSettings match {
         case KafkaOffsetCommitSettings.AutoCommit(timeBetweenCommits) =>
@@ -94,7 +94,7 @@ object KafkaConsumer {
   /**
     * Creates a streaming subscription using the supplied kafka configuration
     */
-  def apply[F[_] : ConcurrentEffect : Timer, K, V](config : KafkaConsumerConfig[K, V]): Stream[F, Either[Throwable, ConsumerRecord[K, V]]] = {
+  def apply[F[_] : Concurrent : Timer, K, V](config : KafkaConsumerConfig[K, V]): Stream[F, Either[Throwable, ConsumerRecord[K, V]]] = {
     val byteConfig = config.copy(keyDeserializer = new ByteArrayDeserializer(), valueDeserializer = new ByteArrayDeserializer())
     val thinKafkaConsumerClient = ThinKafkaConsumerClient[F]
 
