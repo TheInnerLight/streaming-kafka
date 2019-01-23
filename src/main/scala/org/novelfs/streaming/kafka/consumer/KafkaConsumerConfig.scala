@@ -6,6 +6,7 @@ import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.common.serialization.Deserializer
 import org.novelfs.streaming.kafka._
 
+import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 
 case class KafkaConsumerConfig[K, V](
@@ -20,6 +21,7 @@ case class KafkaConsumerConfig[K, V](
     pollTimeout              : FiniteDuration,
     maxPollInterval          : FiniteDuration,
     maxPollRecords           : Int,
+    pollingExecutionContext  : ExecutionContext,
     keyDeserializer          : Deserializer[K],
     valueDeserializer        : Deserializer[V]
     )
@@ -32,6 +34,7 @@ object KafkaConsumerConfig {
              topics: List[String],
              clientId: String,
              groupId: String,
+             pollingExecutionContext : ExecutionContext,
              keyDeserializer: Deserializer[K],
              valueDeserializer: Deserializer[V]
            ): KafkaConsumerConfig[K, V] =
@@ -47,6 +50,7 @@ object KafkaConsumerConfig {
       pollTimeout = 200.milliseconds,
       maxPollRecords = 500,
       maxPollInterval = 180.seconds,
+      pollingExecutionContext = pollingExecutionContext,
       keyDeserializer = keyDeserializer,
       valueDeserializer = valueDeserializer)
 

@@ -1,14 +1,14 @@
 import ReleaseTransformations._
 
 name := "streaming-kafka"
-scalaVersion := "2.12.7"
+scalaVersion := "2.12.8"
 organization := "org.novelfs"
 
-val catsEffectVersion = "1.0.0"
+val catsEffectVersion = "1.1.0"
 val kafkaSerializationV = "0.3.2"
 val scalatestVersion = "3.0.4"
 val typesafeConfigVersion = "1.3.1"
-val fs2Version = "1.0.0"
+val fs2Version = "1.0.2"
 
 libraryDependencies ++= Seq(
     "com.typesafe" % "config" % typesafeConfigVersion

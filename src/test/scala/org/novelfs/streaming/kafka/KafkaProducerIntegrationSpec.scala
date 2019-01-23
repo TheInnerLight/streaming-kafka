@@ -43,6 +43,7 @@ class KafkaProducerIntegrationSpec extends FlatSpec with Matchers with Generator
           topics = List(topicName),
           clientId = "test",
           groupId = "test",
+          pollingExecutionContext = scala.concurrent.ExecutionContext.global,
           keyDeserializer = stringDeserialiser,
           valueDeserializer = stringDeserialiser
         )

@@ -100,7 +100,7 @@ trait DomainArbitraries {
       topics <- Gen.listOfN(3, Gen.alphaStr)
       clientId <- Gen.alphaStr
       groupId <- Gen.alphaStr
-    } yield KafkaConsumerConfig[String, String](brokers, securitySettings, topics, clientId, groupId, null, null))
+    } yield KafkaConsumerConfig[String, String](brokers, securitySettings, topics, clientId, groupId, scala.concurrent.ExecutionContext.global, null, null))
 
 
 }

@@ -92,7 +92,7 @@ object KafkaConsumer {
   /**
     * Creates a streaming subscription using the supplied kafka configuration
     */
-  def apply[F[_] : Concurrent : Timer, K, V](config : KafkaConsumerConfig[K, V])(implicit monadKafkaConsumer: MonadKafkaConsumer.Aux[F, KafkaConsumerSubscription]): Stream[F, Either[Throwable, ConsumerRecord[K, V]]] = {
+  def apply[F[_] : Concurrent : Timer : ContextShift, K, V](config : KafkaConsumerConfig[K, V])(implicit monadKafkaConsumer: MonadKafkaConsumer.Aux[F, KafkaConsumerSubscription]): Stream[F, Either[Throwable, ConsumerRecord[K, V]]] = {
     val byteConfig = config.copy(keyDeserializer = new ByteArrayDeserializer(), valueDeserializer = new ByteArrayDeserializer())
 
     def subscribe: Resource[F, MVar[F, KafkaConsumerSubscription[Array[Byte], Array[Byte]]]] =
@@ -116,7 +116,7 @@ object KafkaConsumer {
 
     def pollAndChunk(lockedConsumer : MVar[F, KafkaConsumerSubscription[Array[Byte], Array[Byte]]])(timeout : FiniteDuration): Stream[F, ConsumerRecord[Array[Byte], Array[Byte]]] =
       for {
-        records <- Stream.eval(lockedConsumer.locked(consumer => monadKafkaConsumer.poll(config.pollTimeout)(consumer))).scope
+        records <- Stream.eval(lockedConsumer.locked(consumer => ContextShift[F].evalOn(config.pollingExecutionContext)(monadKafkaConsumer.poll(config.pollTimeout)(consumer)))).scope
         process <- Stream.chunk(Chunk.vector(records)).covary[F]
       } yield process
 
