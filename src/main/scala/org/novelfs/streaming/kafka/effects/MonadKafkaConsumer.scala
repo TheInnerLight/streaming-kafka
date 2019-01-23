@@ -6,9 +6,7 @@ import simulacrum.typeclass
 
 import scala.concurrent.duration.FiniteDuration
 
-@typeclass trait MonadKafkaConsumer[F[_]] {
-  type TContext[_, _]
-
+trait MonadKafkaConsumer[F[_], TContext[_, _]] {
   /**
     * An effect to commit supplied map of offset metadata for each topic/partition pair
     */
@@ -42,5 +40,5 @@ import scala.concurrent.duration.FiniteDuration
 }
 
 object MonadKafkaConsumer {
-  type Aux[F[_], Context[_, _]] = MonadKafkaConsumer[F] { type TContext[A, B] = Context[A, B] }
+  def apply[F[_], TContext[_, _]](implicit monadKafkaConsumer: MonadKafkaConsumer[F, TContext]) = monadKafkaConsumer
 }

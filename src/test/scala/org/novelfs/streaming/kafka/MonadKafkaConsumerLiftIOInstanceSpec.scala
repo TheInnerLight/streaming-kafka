@@ -24,7 +24,7 @@ class MonadKafkaConsumerLiftIOInstanceSpec extends FlatSpec with Matchers with M
       (rawKafkaConsumer.poll(_ : java.time.Duration)) expects(java.time.Duration.ofMillis(d.toMillis)) returns
         (new ApacheConsumerRecords[String,String](Map.empty[org.apache.kafka.common.TopicPartition, java.util.List[ApacheConsumerRecord[String, String]]].asJava)) once()
 
-      MonadKafkaConsumer[IO].poll(d)(kafkaSubscription).unsafeRunSync()
+      MonadKafkaConsumer[IO, KafkaConsumerSubscription].poll(d)(kafkaSubscription).unsafeRunSync()
     }
   }
 
@@ -35,7 +35,7 @@ class MonadKafkaConsumerLiftIOInstanceSpec extends FlatSpec with Matchers with M
       (rawKafkaConsumer.commitSync(_ : java.util.Map[org.apache.kafka.common.TopicPartition,  org.apache.kafka.clients.consumer.OffsetAndMetadata]))
         .expects (javaMap) once()
 
-      MonadKafkaConsumer[IO].commitOffsetMap(offsetMap)(kafkaSubscription).unsafeRunSync()
+      MonadKafkaConsumer[IO, KafkaConsumerSubscription].commitOffsetMap(offsetMap)(kafkaSubscription).unsafeRunSync()
     }
   }
 
@@ -46,7 +46,7 @@ class MonadKafkaConsumerLiftIOInstanceSpec extends FlatSpec with Matchers with M
       (rawKafkaConsumer.commitSync(_ : java.util.Map[org.apache.kafka.common.TopicPartition,  org.apache.kafka.clients.consumer.OffsetAndMetadata]))
         .expects (javaMap) onCall { (_ : java.util.Map[org.apache.kafka.common.TopicPartition,  org.apache.kafka.clients.consumer.OffsetAndMetadata]) => throw new RuntimeException("Argh") } once()
 
-      val result = MonadKafkaConsumer[IO].commitOffsetMap(offsetMap)(kafkaSubscription).attempt.unsafeRunSync()
+      val result = MonadKafkaConsumer[IO, KafkaConsumerSubscription].commitOffsetMap(offsetMap)(kafkaSubscription).attempt.unsafeRunSync()
 
       result.isRight shouldBe false
     }
@@ -55,7 +55,7 @@ class MonadKafkaConsumerLiftIOInstanceSpec extends FlatSpec with Matchers with M
   "topicPartitionAssignments" should "call consumer.assignment" in new MonadKafkaConsumerLiftIOInstanceSpecContext {
     ((rawKafkaConsumer.assignment _) : () => java.util.Set[org.apache.kafka.common.TopicPartition]).expects().returns(new java.util.HashSet[org.apache.kafka.common.TopicPartition]())
 
-    MonadKafkaConsumer[IO].topicPartitionAssignments(kafkaSubscription).unsafeRunSync()
+    MonadKafkaConsumer[IO, KafkaConsumerSubscription].topicPartitionAssignments(kafkaSubscription).unsafeRunSync()
   }
 
   "seekToBeginning" should "call consumer.seekToBeginning" in new MonadKafkaConsumerLiftIOInstanceSpecContext {
@@ -67,7 +67,7 @@ class MonadKafkaConsumerLiftIOInstanceSpec extends FlatSpec with Matchers with M
         .expects (javaSet) once()
 
 
-      MonadKafkaConsumer[IO].seekToBeginning(partitionSet)(kafkaSubscription).unsafeRunSync()
+      MonadKafkaConsumer[IO, KafkaConsumerSubscription].seekToBeginning(partitionSet)(kafkaSubscription).unsafeRunSync()
     }
   }
 
@@ -80,7 +80,7 @@ class MonadKafkaConsumerLiftIOInstanceSpec extends FlatSpec with Matchers with M
         .expects (javaSet) once()
 
 
-      MonadKafkaConsumer[IO].seekToEnd(partitionSet)(kafkaSubscription).unsafeRunSync()
+      MonadKafkaConsumer[IO, KafkaConsumerSubscription].seekToEnd(partitionSet)(kafkaSubscription).unsafeRunSync()
     }
   }
 
@@ -90,7 +90,7 @@ class MonadKafkaConsumerLiftIOInstanceSpec extends FlatSpec with Matchers with M
         (rawKafkaConsumer.seek(_, _)).expects(tp.toKafkaSdk, om.toKafkaSdk.offset) once()
       }
 
-      MonadKafkaConsumer[IO].seekTo(offsetMap)(kafkaSubscription).unsafeRunSync()
+      MonadKafkaConsumer[IO, KafkaConsumerSubscription].seekTo(offsetMap)(kafkaSubscription).unsafeRunSync()
     }
   }
 }

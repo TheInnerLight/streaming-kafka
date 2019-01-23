@@ -13,11 +13,9 @@ import org.slf4j.LoggerFactory
 import scala.concurrent.duration.FiniteDuration
 
 package object io {
-  implicit def ioMonadKafkaConsumer[F[_] : LiftIO : Monad] = new MonadKafkaConsumer[F] {
+  implicit def ioMonadKafkaConsumer[F[_] : LiftIO : Monad] = new MonadKafkaConsumer[F, KafkaConsumerSubscription] {
 
     private val log = LoggerFactory.getLogger(this.getClass)
-
-    override type TContext[A, B] = KafkaConsumerSubscription[A, B]
 
     /**
       * An effect to commit supplied map of offset metadata for each topic/partition pair
