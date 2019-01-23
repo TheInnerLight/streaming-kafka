@@ -109,8 +109,8 @@ trait ToSdkConversions {
       val headers: Array[Header] = kafkaRecord.headers.toArray.map(h => new RecordHeader(h.key, h.value) )
       new ApacheProducerRecord[K, V](
         kafkaRecord.topic,
-        kafkaRecord.partition.map(new java.lang.Integer(_)).orNull,
-        kafkaRecord.timestamp.map(new java.lang.Long(_)).orNull,
+        kafkaRecord.partition.map(java.lang.Integer.valueOf(_)).orNull,
+        kafkaRecord.timestamp.map(java.lang.Long.valueOf(_)).orNull,
         kafkaRecord.key,
         kafkaRecord.value,
         new RecordHeaders(headers)

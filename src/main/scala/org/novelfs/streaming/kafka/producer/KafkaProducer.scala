@@ -6,8 +6,7 @@ import fs2._
 import org.apache.kafka.clients.producer.{KafkaProducer => ConcreteApacheKafkaProducer, Producer => ApacheKafkaProducer}
 import org.apache.kafka.common.serialization.{ByteArraySerializer, Serializer}
 import org.novelfs.streaming.kafka.KafkaSdkConversions
-import org.novelfs.streaming.kafka.producer.KafkaProducer.cleanupProducer
-//import org.slf4j.LoggerFactory
+import org.novelfs.streaming.kafka.effects.MonadKafkaProducer
 import KafkaSdkConversions._
 
 final case class KafkaProducer[K, V] private (kafkaProducer : ApacheKafkaProducer[K, V])
@@ -27,39 +26,14 @@ object KafkaProducer {
     )
 
   /**
-    * An effect that sends a supplied producer record to the supplier kafka producer
-    */
-  def sendRecord[F[_] : Async, K, V](record: ProducerRecord[K, V])(producer: KafkaProducer[K, V]): F[Unit] =
-    Async[F].delay {
-      producer.kafkaProducer.send(record.toKafkaSdk)
-      ()
-    }
-
-  /**
-    * An effect to create a kafka producer using the supplied producer config
-    */
-  def createProducer[F[_] : Async, K, V](producerConfig : KafkaProducerConfig[K, V]): F[KafkaProducer[Array[Byte], Array[Byte]]] =
-    Async[F].delay {
-      val props = KafkaProducerConfig.generateProperties(producerConfig)
-      val producer = new ConcreteApacheKafkaProducer[Array[Byte], Array[Byte]](props, new ByteArraySerializer(), new ByteArraySerializer())
-      KafkaProducer(producer)
-    }
-
-  /**
-    * An effect to cleanup a supplied kafka producer
-    */
-  def cleanupProducer[F[_] : Async, K, V](producer : KafkaProducer[K, V]): F[Unit] =
-    Async[F].delay(producer.kafkaProducer.close())
-
-  /**
     * Creates a Pipe that can be used to submit a stream of producer records to Kafka
     */
-  def apply[F[_] : Async, K, V](producerConfig : KafkaProducerConfig[K, V]) : Pipe[F, ProducerRecord[K, V], Either[Throwable, Unit]] = s =>
-    Stream.bracket(createProducer(producerConfig))(cleanupProducer[F, Array[Byte], Array[Byte]])
+  def apply[F[_] : Async : MonadKafkaProducer[?[_], KafkaProducerSubscription], K, V](producerConfig : KafkaProducerConfig[K, V]) : Pipe[F, ProducerRecord[K, V], Either[Throwable, Unit]] = s =>
+    Stream.resource(KafkaProducerSubscription(producerConfig.copy(keySerializer = new ByteArraySerializer(), valueSerializer = new ByteArraySerializer())))
       .flatMap(producer => {
         s.through(serializer(producerConfig.keySerializer, producerConfig.valueSerializer))
           .evalTap {
-            case Right(r) => sendRecord(r)(producer)
+            case Right(r) => MonadKafkaProducer[F, KafkaProducerSubscription].send(r)(producer)
             case Left(_)  => Async[F].unit
           }
           .map(_.map(_ => ()))

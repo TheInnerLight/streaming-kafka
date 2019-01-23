@@ -1,12 +1,12 @@
-package org.novelfs.streaming.kafka.algebra
+package org.novelfs.streaming.kafka.effects
 
 import org.novelfs.streaming.kafka.TopicPartition
 import org.novelfs.streaming.kafka.consumer.{ConsumerRecord, OffsetMetadata}
+import simulacrum.typeclass
 
 import scala.concurrent.duration.FiniteDuration
 
-trait KafkaConsumerAlg[F[_], TContext[_, _]] {
-
+trait MonadKafkaConsumer[F[_], TContext[_, _]] {
   /**
     * An effect to commit supplied map of offset metadata for each topic/partition pair
     */
@@ -37,4 +37,8 @@ trait KafkaConsumerAlg[F[_], TContext[_, _]] {
     */
   def topicPartitionAssignments[K, V](context: TContext[K, V]): F[Set[TopicPartition]]
 
+}
+
+object MonadKafkaConsumer {
+  def apply[F[_], TContext[_, _]](implicit monadKafkaConsumer: MonadKafkaConsumer[F, TContext]) = monadKafkaConsumer
 }

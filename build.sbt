@@ -1,14 +1,14 @@
 import ReleaseTransformations._
 
 name := "streaming-kafka"
-scalaVersion := "2.12.7"
+scalaVersion := "2.12.8"
 organization := "org.novelfs"
 
-val catsEffectVersion = "1.0.0"
+val catsEffectVersion = "1.1.0"
 val kafkaSerializationV = "0.3.2"
 val scalatestVersion = "3.0.4"
 val typesafeConfigVersion = "1.3.1"
-val fs2Version = "1.0.0"
+val fs2Version = "1.0.2"
 
 libraryDependencies ++= Seq(
     "com.typesafe" % "config" % typesafeConfigVersion
@@ -17,6 +17,7 @@ libraryDependencies ++= Seq(
   , "org.scalamock" %% "scalamock" % "4.1.0" % Test
   , "org.scalacheck" %% "scalacheck" % "1.13.4" % Test
   , "org.typelevel" %% "cats-effect" % catsEffectVersion
+  , "org.typelevel" %% "cats-mtl-core" % "0.4.0"
   , "org.apache.kafka" % "kafka-clients" % "2.0.0"
   , "co.fs2" %% "fs2-core" % fs2Version
   , "co.fs2" %% "fs2-io" % fs2Version
@@ -24,6 +25,7 @@ libraryDependencies ++= Seq(
 )
 
 addCompilerPlugin("org.spire-math" %% "kind-projector" % "0.9.4")
+addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full)
 
 scalacOptions ++= Seq(
   "-deprecation",                      // Emit warning and location for usages of deprecated APIs.
