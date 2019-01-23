@@ -52,7 +52,7 @@ class MonadKafkaProducerLiftIOInstanceSpec extends FlatSpec with Matchers with M
 
   "send" should "call send with the supplied kafka record" in new MonadKafkaConsumerLiftIOInstanceSpecContext {
     forAll { producerRecord : ProducerRecord[String, String] =>
-      MonadKafkaProducer[IO].send(producerRecord)(kafkaSubscription).unsafeRunSync()
+      MonadKafkaProducer[IO, KafkaProducerSubscription].send(producerRecord)(kafkaSubscription).unsafeRunSync()
       val actualApacheKafkaProducerRecord = recordMvar.take.unsafeRunSync()
       actualApacheKafkaProducerRecord shouldBe producerRecord.toKafkaSdk
     }

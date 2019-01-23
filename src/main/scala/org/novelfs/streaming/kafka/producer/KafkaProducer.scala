@@ -28,12 +28,12 @@ object KafkaProducer {
   /**
     * Creates a Pipe that can be used to submit a stream of producer records to Kafka
     */
-  def apply[F[_] : Async, K, V](producerConfig : KafkaProducerConfig[K, V])(implicit monadKafkaProducer: MonadKafkaProducer.Aux[F, KafkaProducerSubscription]) : Pipe[F, ProducerRecord[K, V], Either[Throwable, Unit]] = s =>
+  def apply[F[_] : Async : MonadKafkaProducer[?[_], KafkaProducerSubscription], K, V](producerConfig : KafkaProducerConfig[K, V]) : Pipe[F, ProducerRecord[K, V], Either[Throwable, Unit]] = s =>
     Stream.resource(KafkaProducerSubscription(producerConfig.copy(keySerializer = new ByteArraySerializer(), valueSerializer = new ByteArraySerializer())))
       .flatMap(producer => {
         s.through(serializer(producerConfig.keySerializer, producerConfig.valueSerializer))
           .evalTap {
-            case Right(r) => monadKafkaProducer.send(r)(producer)
+            case Right(r) => MonadKafkaProducer[F, KafkaProducerSubscription].send(r)(producer)
             case Left(_)  => Async[F].unit
           }
           .map(_.map(_ => ()))

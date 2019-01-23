@@ -4,9 +4,7 @@ import cats.Foldable
 import org.novelfs.streaming.kafka.producer.ProducerRecord
 import simulacrum.typeclass
 
-@typeclass trait MonadKafkaProducer[F[_]] {
-  type TContext[_, _]
-
+trait MonadKafkaProducer[F[_], TContext[_, _]] {
   /**
     * An effect that sends a supplied producer record to the supplier kafka producer
     */
@@ -19,5 +17,5 @@ import simulacrum.typeclass
 }
 
 object MonadKafkaProducer {
-  type Aux[F[_], Context[_, _]] = MonadKafkaProducer[F] { type TContext[A, B] = Context[A, B] }
+  def apply[F[_], TContext[_, _]](implicit monadKafkaProducer: MonadKafkaProducer[F, TContext]) = monadKafkaProducer
 }

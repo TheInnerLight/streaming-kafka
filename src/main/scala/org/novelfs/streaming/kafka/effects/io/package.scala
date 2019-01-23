@@ -65,9 +65,7 @@ package object io {
       LiftIO[F].liftIO(IO { context.kafkaConsumer.assignment().fromKafkaSdk })
   }
 
-  implicit def ioKafkaProducer[F[_] : LiftIO : Monad] = new MonadKafkaProducer[F] {
-    override type TContext[A, B] = KafkaProducerSubscription[A, B]
-
+  implicit def ioKafkaProducer[F[_] : LiftIO : Monad] = new MonadKafkaProducer[F, KafkaProducerSubscription] {
     /**
       * An effect that sends a supplied producer record to the supplier kafka producer
       */
