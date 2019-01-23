@@ -18,10 +18,10 @@ object KafkaProducerConfig {
     val props: Properties = new Properties()
     props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaProducerConfig.brokers.mkString(","))
     props.put(ProducerConfig.ACKS_CONFIG, "all")
-    props.put(ProducerConfig.RETRIES_CONFIG, new java.lang.Integer(0))
-    props.put(ProducerConfig.BATCH_SIZE_CONFIG, new java.lang.Integer(16384))
-    props.put(ProducerConfig.LINGER_MS_CONFIG, new java.lang.Integer(1))
-    props.put(ProducerConfig.BUFFER_MEMORY_CONFIG, new java.lang.Integer(33554432))
+    props.put(ProducerConfig.RETRIES_CONFIG, java.lang.Integer.valueOf(0))
+    props.put(ProducerConfig.BATCH_SIZE_CONFIG, java.lang.Integer.valueOf(16384))
+    props.put(ProducerConfig.LINGER_MS_CONFIG, java.lang.Integer.valueOf(1))
+    props.put(ProducerConfig.BUFFER_MEMORY_CONFIG, java.lang.Integer.valueOf(33554432))
     kafkaProducerConfig.security match {
       case KafkaSecuritySettings.EncryptedAndAuthenticated(encryptionSettings, authSettings) =>
         KafkaSecuritySettings.addEncryptionProps(KafkaSecuritySettings.addAuthenticationProps(props)(authSettings))(encryptionSettings)
